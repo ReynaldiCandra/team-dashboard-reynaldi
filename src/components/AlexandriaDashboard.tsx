@@ -2158,7 +2158,9 @@ export default function AlexandriaDashboard() {
       </div>
       {/* ── Welcome Greeting Modal ── */}
       <AnimatePresence>
-        {showGreeting && greetingUser &&0, scale:0.8, y:40 }}
+        {showGreeting && greetingUser && (
+          <motion.div
+            initial={{ opacity:0, scale:0.8, y:40 }}
             animate={{ opacity:1, scale:1, y:0 }}
             exit={{ opacity:0, scale:0.9, y:20 }}
             transition={{ type:'spring', stiffness:300, damping:25 }}
