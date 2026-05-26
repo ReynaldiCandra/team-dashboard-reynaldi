@@ -48,106 +48,24 @@ interface Lead {
 interface User { id:string; name:string; role:Role; team:string; avatar:string; email:string; online:boolean; revenue:number; leads:number; closing:number; score:number }
 
 // ─── Mock Data ───────────────────────────────────────────────────────────────
-const LEADS_INIT: Lead[] = [
-  { id:'L001', parentName:'Bpk. Hendra Wijaya', parentPhone:'081234567890', childName:'Rafi Wijaya', childClass:'SD Kelas 1', source:'Instagram', status:'baru', temp:'hot', assignedTo:'farhan', createdAt:'2026-05-24', lastContact:'2026-05-24', daysSinceLast:0, notes:'DM IG, tanya program unggulan SD', campaign:'Ramadan Promo 2026', followUps:[] },
-  { id:'L002', parentName:'Ibu Sari Dewi', parentPhone:'082345678901', childName:'Nadia Sari', childClass:'TK', source:'WhatsApp', status:'dihubungi', temp:'warm', assignedTo:'farhan', createdAt:'2026-05-23', lastContact:'2026-05-23', daysSinceLast:1, notes:'Tertarik kurikulum islami, minta brosur', campaign:'Ramadan Promo 2026', followUps:[
-    { date:'2026-05-23', method:'WA', note:'Kirim brosur & profil sekolah', result:'Respon positif, minta jadwal tour', by:'Mr. Farhan' }
-  ]},
-  { id:'L003', parentName:'Bpk. Ahmad Fauzi', parentPhone:'083456789012', childName:'Zaki Fauzi', childClass:'SMP Kelas 7', source:'Referral', status:'berminat', temp:'hot', assignedTo:'ramram', createdAt:'2026-05-22', lastContact:'2026-05-23', daysSinceLast:1, notes:'Direferensikan oleh alumni. Anak juara olimpiade sains', followUps:[
-    { date:'2026-05-22', method:'Telepon', note:'Perkenalan & jelaskan program SMP', result:'Sangat antusias, minta video profil', by:'Mr. Ramram' },
-    { date:'2026-05-23', method:'WA', note:'Kirim video profil & prestasi sekolah', result:'Mau survey sekolah Sabtu ini', by:'Mr. Ramram' }
-  ]},
-  { id:'L004', parentName:'Ibu Ratna Kusuma', parentPhone:'084567890123', childName:'Daffa Kusuma', childClass:'SD Kelas 4', source:'Facebook', status:'survey', temp:'warm', assignedTo:'farhan', createdAt:'2026-05-20', lastContact:'2026-05-22', daysSinceLast:2, notes:'Sudah survey Rabu kemarin. Kesan positif.', followUps:[
-    { date:'2026-05-20', method:'WA', note:'Perkenalan dari iklan Facebook', result:'Mau tour sekolah', by:'Mr. Farhan' },
-    { date:'2026-05-22', method:'Kunjungan', note:'Tour sekolah, ketemu kepala sekolah', result:'Sangat terkesan, diskusi biaya', by:'Mr. Farhan' }
-  ]},
-  { id:'L005', parentName:'Bpk. Doni Prasetyo', parentPhone:'085678901234', childName:'Aisha Prasetyo', childClass:'SMA Kelas 10', source:'Google', status:'meeting', temp:'hot', assignedTo:'ramram', createdAt:'2026-05-19', lastContact:'2026-05-23', daysSinceLast:1, notes:'Meeting dengan kepala sekolah besok jam 10', followUps:[
-    { date:'2026-05-19', method:'Telepon', note:'Kontak pertama dari lead Google Ads', result:'Mau meeting langsung', by:'Mr. Ramram' },
-    { date:'2026-05-21', method:'WA', note:'Konfirmasi jadwal meeting', result:'Konfirmasi Senin jam 10', by:'Mr. Ramram' },
-    { date:'2026-05-23', method:'WA', note:'Reminder meeting besok', result:'Siap hadir', by:'Mr. Ramram' }
-  ]},
-  { id:'L006', parentName:'Ibu Maya Indah', parentPhone:'086789012345', childName:'Fahmi Indah', childClass:'SD Kelas 2', source:'Instagram', status:'proposal', temp:'warm', assignedTo:'farhan', createdAt:'2026-05-15', lastContact:'2026-05-21', daysSinceLast:3, notes:'Proposal biaya sudah dikirim, tunggu keputusan', followUps:[
-    { date:'2026-05-17', method:'WA', note:'Follow up setelah kirim brosur', result:'Minta meeting', by:'Mr. Farhan' },
-    { date:'2026-05-19', method:'Kunjungan', note:'Meeting dan tour sekolah', result:'Minta proposal biaya', by:'Mr. Farhan' },
-    { date:'2026-05-21', method:'WA', note:'Kirim proposal biaya lengkap', result:'Masih diskusi dengan suami', by:'Mr. Farhan' }
-  ]},
-  { id:'L007', parentName:'Bpk. Eko Santoso', parentPhone:'087890123456', childName:'Bilal Santoso', childClass:'TK', source:'WhatsApp', status:'closing', temp:'hot', assignedTo:'ramram', createdAt:'2026-05-10', lastContact:'2026-05-22', daysSinceLast:2, notes:'CLOSING! Sudah bayar uang pendaftaran Rp 2jt', followUps:[
-    { date:'2026-05-12', method:'WA', note:'Follow up pertama', result:'Berminat', by:'Mr. Ramram' },
-    { date:'2026-05-15', method:'Kunjungan', note:'Survey & meeting', result:'Sangat suka', by:'Mr. Ramram' },
-    { date:'2026-05-20', method:'Telepon', note:'Konfirmasi keputusan', result:'Setuju daftar', by:'Mr. Ramram' },
-    { date:'2026-05-22', method:'WA', note:'Proses pendaftaran & pembayaran', result:'CLOSING ✅', by:'Mr. Ramram' }
-  ]},
-  { id:'L008', parentName:'Ibu Fitri Handayani', parentPhone:'088901234567', childName:'Anisa Handayani', childClass:'SMP Kelas 8', source:'Referral', status:'gagal', temp:'cold', assignedTo:'farhan', createdAt:'2026-05-05', lastContact:'2026-05-15', daysSinceLast:9, notes:'Memilih sekolah lain yang lebih dekat', followUps:[
-    { date:'2026-05-06', method:'Telepon', note:'Kontak pertama', result:'Berminat', by:'Mr. Farhan' },
-    { date:'2026-05-10', method:'WA', note:'Kirim info & brosur', result:'Sedang pertimbangkan', by:'Mr. Farhan' },
-    { date:'2026-05-15', method:'Telepon', note:'Follow up keputusan', result:'Pilih sekolah lain', by:'Mr. Farhan' }
-  ]},
-  { id:'L009', parentName:'Bpk. Rudi Hartono', parentPhone:'089012345678', childName:'Hafiz Hartono', childClass:'SD Kelas 3', source:'Instagram', status:'baru', temp:'warm', assignedTo:'ramram', createdAt:'2026-05-24', lastContact:'2026-05-24', daysSinceLast:0, notes:'Komentar di post Instagram, minta info lengkap', followUps:[] },
-  { id:'L010', parentName:'Ibu Dewi Rahayu', parentPhone:'081122334455', childName:'Salsa Rahayu', childClass:'TK', source:'Walk-in', status:'dihubungi', temp:'cold', assignedTo:'farhan', createdAt:'2026-05-18', lastContact:'2026-05-20', daysSinceLast:4, notes:'Walk-in langsung, sudah 4 hari belum respon WA', followUps:[
-    { date:'2026-05-18', method:'WA', note:'Ucapkan terima kasih sudah berkunjung, kirim brosur', result:'Seen, tidak balas', by:'Mr. Farhan' },
-    { date:'2026-05-20', method:'WA', note:'Follow up kedua', result:'Belum balas', by:'Mr. Farhan' }
-  ]},
-]
+const LEADS_INIT: Lead[] = []
 
 const CLASSES: ChildClass[] = ['TK','SD Kelas 1','SD Kelas 2','SD Kelas 3','SD Kelas 4','SD Kelas 5','SD Kelas 6','SMP Kelas 7','SMP Kelas 8','SMP Kelas 9','SMA Kelas 10','SMA Kelas 11','SMA Kelas 12']
 const LEAD_SOURCES: LeadSource[] = ['Instagram','WhatsApp','Referral','Facebook','Google','Walk-in','Lainnya']
 
-const USERS: User[] = [
-  { id:'1', name:'Reynaldi', role:'superadmin', team:'All', avatar:'R', email:'reynaldi@alex.id', online:true, revenue:185000000, leads:142, closing:38, score:98 },
-  { id:'2', name:'Budi Manager', role:'manager', team:'All', avatar:'B', email:'budi@alex.id', online:true, revenue:0, leads:0, closing:0, score:0 },
-  { id:'3', name:'Siti Leader', role:'leader', team:'Alpha', avatar:'S', email:'siti@alex.id', online:false, revenue:0, leads:0, closing:0, score:0 },
-  { id:'4', name:'Mr. Farhan', role:'staff', team:'Alpha', avatar:'F', email:'farhan@alex.id', online:true, revenue:92000000, leads:78, closing:21, score:87 },
-  { id:'5', name:'Mr. Ramram', role:'staff', team:'Beta', avatar:'M', email:'ramram@alex.id', online:false, revenue:73000000, leads:61, closing:17, score:74 },
-]
+const USERS: User[] = []
 
-const MONTHLY = [
-  { month:'Jan', revenue:120, leads:89, closing:22, target:100 },
-  { month:'Feb', revenue:145, leads:102, closing:28, target:110 },
-  { month:'Mar', revenue:98, leads:76, closing:18, target:120 },
-  { month:'Apr', revenue:178, leads:134, closing:35, target:130 },
-  { month:'May', revenue:210, leads:158, closing:42, target:140 },
-  { month:'Jun', revenue:165, leads:121, closing:31, target:150 },
-]
+const MONTHLY: {month:string;revenue:number;leads:number;closing:number;target:number}[] = []
 
-const WEEKLY = [
-  { day:'Sen', farhan:18, ramram:14 },
-  { day:'Sel', farhan:22, ramram:19 },
-  { day:'Rab', farhan:15, ramram:21 },
-  { day:'Kam', farhan:28, ramram:16 },
-  { day:'Jum', farhan:24, ramram:23 },
-]
+const WEEKLY: {day:string;farhan:number;ramram:number}[] = []
 
-const SOURCES = [
-  { name:'Instagram', value:38, color:'#8b5cf6' },
-  { name:'WhatsApp', value:27, color:'#06b6d4' },
-  { name:'Referral', value:18, color:'#10b981' },
-  { name:'Facebook', value:10, color:'#3b82f6' },
-  { name:'Google', value:7, color:'#f59e0b' },
-]
+const SOURCES: {name:string;value:number;color:string}[] = []
 
-const RADAR_DATA = [
-  { metric:'Leads', farhan:87, ramram:74 },
-  { metric:'Closing', farhan:84, ramram:68 },
-  { metric:'Revenue', farhan:92, ramram:73 },
-  { metric:'Follow-up', farhan:78, ramram:82 },
-  { metric:'Meeting', farhan:70, ramram:65 },
-  { metric:'Proposal', farhan:88, ramram:71 },
-]
+const RADAR_DATA: {metric:string;farhan:number;ramram:number}[] = []
 
-const CAMPAIGNS = [
-  { id:'1', name:'Ramadan Promo 2026', status:'Active', leads:145, closing:38, revenue:178000000, staff:['Mr. Farhan','Mr. Ramram'], start:'2026-03-01', end:'2026-04-30', budget:50000000 },
-  { id:'2', name:'Back to School', status:'Active', leads:98, closing:25, revenue:112000000, staff:['Mr. Farhan'], start:'2026-05-01', end:'2026-06-30', budget:30000000 },
-  { id:'3', name:'Year End Sale', status:'Completed', leads:201, closing:57, revenue:265000000, staff:['Mr. Farhan','Mr. Ramram'], start:'2025-11-01', end:'2025-12-31', budget:80000000 },
-  { id:'4', name:'Summer Special', status:'Paused', leads:43, closing:11, revenue:54000000, staff:['Mr. Ramram'], start:'2026-06-15', end:'2026-07-31', budget:20000000 },
-]
+const CAMPAIGNS: {id:string;name:string;status:string;leads:number;closing:number;revenue:number;staff:string[];start:string;end:string;budget:number}[] = []
 
-const LEADERBOARD = [
-  { rank:1, name:'Mr. Farhan', team:'Alpha', revenue:92000000, leads:78, closing:21, score:87, trend:'up', avatar:'F' },
-  { rank:2, name:'Mr. Ramram', team:'Beta', revenue:73000000, leads:61, closing:17, score:74, trend:'up', avatar:'M' },
-  { rank:3, name:'Dian Pratiwi', team:'Alpha', revenue:58000000, leads:52, closing:13, score:68, trend:'down', avatar:'D' },
-  { rank:4, name:'Agus Salim', team:'Beta', revenue:45000000, leads:41, closing:10, score:61, trend:'up', avatar:'A' },
-  { rank:5, name:'Wulan Sari', team:'Gamma', revenue:38000000, leads:35, closing:8, score:54, trend:'down', avatar:'W' },
-]
+const LEADERBOARD: {rank:number;name:string;team:string;revenue:number;leads:number;closing:number;score:number;trend:string;avatar:string}[] = []
 
 const PERF_METRICS = [
   { key:'leads', label:'Leads Masuk', icon:Users, target:30, achieved:24, color:'blue' },
@@ -161,20 +79,9 @@ const PERF_METRICS = [
   { key:'old_leads', label:'Treatment Lama', icon:Clock, target:20, achieved:17, color:'yellow' },
 ]
 
-const GOALS = [
-  { id:'1', title:'Revenue Q2 2026', description:'Mencapai total revenue Rp 600jt di Q2', target:600, current:385, unit:'jt', deadline:'2026-06-30', owner:'Tim All', priority:'high', status:'on-track' },
-  { id:'2', title:'1000 Leads Baru', description:'Akuisisi 1000 leads baru dalam Q2', target:1000, current:628, unit:'leads', deadline:'2026-06-30', owner:'Mr. Farhan', priority:'high', status:'on-track' },
-  { id:'3', title:'Konversi 35%', description:'Meningkatkan conversion rate ke 35%', target:35, current:32.4, unit:'%', deadline:'2026-06-30', owner:'Tim Alpha', priority:'medium', status:'at-risk' },
-  { id:'4', title:'5 Campaign Aktif', description:'Jalankan minimal 5 campaign serentak', target:5, current:2, unit:'campaign', deadline:'2026-07-01', owner:'Siti Leader', priority:'low', status:'behind' },
-]
+const GOALS: {id:string;title:string;description:string;target:number;current:number;unit:string;deadline:string;owner:string;priority:string;status:string}[] = []
 
-const ATTENDANCE = [
-  { date:'2026-05-24', farhan:'hadir', ramram:'hadir', checkIn:'08:02', checkOut:'-' },
-  { date:'2026-05-23', farhan:'hadir', ramram:'wfh', checkIn:'08:15', checkOut:'17:30' },
-  { date:'2026-05-22', farhan:'hadir', ramram:'hadir', checkIn:'07:58', checkOut:'17:45' },
-  { date:'2026-05-21', farhan:'wfh', ramram:'hadir', checkIn:'08:30', checkOut:'17:00' },
-  { date:'2026-05-20', farhan:'hadir', ramram:'izin', checkIn:'08:10', checkOut:'17:20' },
-]
+const ATTENDANCE: {date:string;farhan:string;ramram:string;checkIn:string;checkOut:string}[] = []
 
 const fmtRp = (n:number) => `Rp ${(n/1000000).toFixed(0)}jt`
 const fmtNum = (n:number) => n >= 1000 ? `${(n/1000).toFixed(1)}K` : String(n)
