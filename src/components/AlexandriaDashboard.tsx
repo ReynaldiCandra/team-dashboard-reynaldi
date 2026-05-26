@@ -23,6 +23,7 @@ import {
   FileSpreadsheet, MessageSquare
 } from 'lucide-react'
 import { useLeads, exportLeadsCSV, buildWABroadcast, buildWAIndividual } from '@/hooks/use-leads'
+import { useDashboardStats } from '@/hooks/use-dashboard-stats'
 import type { Lead as DBLead, LeadCategory } from '@/hooks/use-leads'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -210,6 +211,7 @@ function MotivationalBanner({ dark }: { dark:boolean }) {
 
 // ─── Dashboard View ───────────────────────────────────────────────────────────
 function DashboardView({ dark }: { dark:boolean }) {
+  const stats = useDashboardStats()
   const [aiSummary, setAiSummary] = useState(false)
   const [generating, setGenerating] = useState(false)
   const [summaryText, setSummaryText] = useState('')
@@ -235,9 +237,9 @@ function DashboardView({ dark }: { dark:boolean }) {
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard label="Total Revenue" value="Rp 265jt" icon={DollarSign} gradient="from-blue-700 via-blue-600 to-blue-400" change="18% vs bulan lalu" positive sub="Target: Rp 300jt" />
-        <KpiCard label="Total Leads" value="1,247" icon={Users} gradient="from-violet-700 via-purple-600 to-purple-400" change="24% vs bulan lalu" positive sub="Target: 1,000" />
-        <KpiCard label="Conversion Rate" value="32.4%" icon={TrendingUp} gradient="from-emerald-700 via-emerald-600 to-green-400" change="3.2% vs bulan lalu" positive />
-        <KpiCard label="Target Achievement" value="88%" icon={Target} gradient="from-orange-600 via-orange-500 to-amber-400" change="12 hari tersisa" positive={false} sub="12% lagi ke target" />
+        <KpiCard label="Total Leads" value={stats.loading ? '...' : String(stats.totalLeads)} icon={Users} gradient="from-violet-700 via-purple-600 to-purple-400" change={stats.loading ? '-' : `${stats.totalClosing} closing`} positive sub="" />
+        <KpiCard label="Conversion Rate" value={stats.loading ? '...' : `${stats.conversionRate}%`} icon={TrendingUp} gradient="from-emerald-700 via-emerald-600 to-green-400" change="enrolled / total leads" positive />
+        <KpiCard label="Total Closing" value={stats.loading ? '...' : String(stats.totalClosing)} icon={Target} gradient="from-orange-600 via-orange-500 to-amber-400" change={stats.loading ? '-' : `dari ${stats.totalLeads} leads`} positive sub="" />
       </div>
 
       {/* Charts Row 1 */}
@@ -254,7 +256,7 @@ function DashboardView({ dark }: { dark:boolean }) {
             </div>
           </div>
           <ResponsiveContainer width="100%" height={220}>
-            <AreaChart data={MONTHLY}>
+            <AreaChart data={stats.monthly}>
               <defs>
                 <linearGradient id="g1" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.4}/>
@@ -282,14 +284,14 @@ function DashboardView({ dark }: { dark:boolean }) {
           <p className={`text-xs ${muted} mb-3`}>Distribusi bulan ini</p>
           <ResponsiveContainer width="100%" height={170}>
             <PieChart>
-              <Pie data={SOURCES} cx="50%" cy="50%" innerRadius={48} outerRadius={78} paddingAngle={4} dataKey="value">
-                {SOURCES.map((e, i) => <Cell key={i} fill={e.color} />)}
+              <Pie data={stats.sources} cx="50%" cy="50%" innerRadius={48} outerRadius={78} paddingAngle={4} dataKey="value">
+                {stats.sources.map((e, i) => <Cell key={i} fill={e.color} />)}
               </Pie>
               <Tooltip contentStyle={tt} />
             </PieChart>
           </ResponsiveContainer>
           <div className="space-y-1.5 mt-2">
-            {SOURCES.map(s => (
+            {stats.sources.map(s => (
               <div key={s.name} className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <div className="w-2.5 h-2.5 rounded-full" style={{ background:s.color }} />
@@ -308,7 +310,7 @@ function DashboardView({ dark }: { dark:boolean }) {
           <h3 className={`font-bold mb-1 ${text}`}>Performa Mingguan</h3>
           <p className={`text-xs ${muted} mb-4`}>Leads per hari</p>
           <ResponsiveContainer width="100%" height={180}>
-            <BarChart data={WEEKLY} barGap={3}>
+            <BarChart data={stats.weekly} barGap={3}>
               <CartesianGrid stroke={gl} strokeDasharray="3 3" />
               <XAxis dataKey="day" stroke={ax} tick={{ fontSize:11 }} />
               <YAxis stroke={ax} tick={{ fontSize:11 }} />
@@ -324,7 +326,7 @@ function DashboardView({ dark }: { dark:boolean }) {
           <h3 className={`font-bold mb-1 ${text}`}>Radar Performa</h3>
           <p className={`text-xs ${muted} mb-2`}>Perbandingan skill staff</p>
           <ResponsiveContainer width="100%" height={210}>
-            <RadarChart data={RADAR_DATA}>
+            <RadarChart data={[]}>
               <PolarGrid stroke={gl} />
               <PolarAngleAxis dataKey="metric" tick={{ fontSize:10, fill:ax }} />
               <Radar name="Mr. Farhan" dataKey="farhan" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.25} />
@@ -342,7 +344,7 @@ function DashboardView({ dark }: { dark:boolean }) {
             </div>
           </div>
           <div className="space-y-2.5">
-            {LEADERBOARD.map(l => (
+            {stats.leaderboard.map(l => (
               <motion.div key={l.rank} whileHover={{ x:4 }} className={`flex items-center gap-2.5 p-2 rounded-xl cursor-default ${dark ? 'hover:bg-[#1e2d4a]' : 'hover:bg-slate-50'} transition-colors`}>
                 <div className={`w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-bold shrink-0 ${l.rank===1?'bg-yellow-500 text-white':l.rank===2?'bg-slate-400 text-white':l.rank===3?'bg-orange-500 text-white':dark?'bg-[#1e2d4a] text-slate-400':'bg-slate-100 text-slate-500'}`}>{l.rank}</div>
                 <div className="w-7 h-7 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold text-xs shrink-0">{l.avatar}</div>
@@ -422,9 +424,9 @@ function DashboardView({ dark }: { dark:boolean }) {
       {/* Quick Stats */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         {[
-          { label:'Leads Hari Ini', value:'12', icon:Users, color:'from-blue-600 to-blue-400' },
+          { label:'Leads Hari Ini', value:stats.loading?'...':String(stats.todayLeads), icon:Users, color:'from-blue-600 to-blue-400' },
           { label:'Follow-up', value:'8', icon:RefreshCw, color:'from-purple-600 to-purple-400' },
-          { label:'Closing', value:'3', icon:CheckCircle, color:'from-green-600 to-green-400' },
+          { label:'Closing Hari Ini', value:stats.loading?'...':String(stats.todayClosing), icon:CheckCircle, color:'from-green-600 to-green-400' },
           { label:'Revenue Hari Ini', value:'Rp 28jt', icon:DollarSign, color:'from-orange-600 to-orange-400' },
           { label:'Staff Online', value:'3/5', icon:Activity, color:'from-emerald-600 to-emerald-400' },
         ].map(s => (
