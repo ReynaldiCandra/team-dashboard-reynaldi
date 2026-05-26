@@ -1157,6 +1157,7 @@ function LoginScreen({ onLogin }: { onLogin:(u:User)=>void }) {
               {[
                 { n:'Reynaldi (SuperAdmin)', e:'reynaldi@alex.id' },
                 { n:'Mr. Farhan (Staff)', e:'farhan@alex.id' },
+                { n:'Mr. Ramram (Staff)', e:'ramram@alex.id' },
               ].map(a=>(
                 <button key={a.e} onClick={()=>{setEmail(a.e);setPass('admin123');setTab('password')}} className="px-3 py-2 text-xs bg-[#0a1020] border border-[#1e2d4a] rounded-xl text-slate-400 hover:text-slate-200 hover:border-blue-500/50 transition-all text-left">
                   {a.n}
@@ -1518,9 +1519,8 @@ function LeadsView({ dark, currentUser }: { dark:boolean; currentUser:User }) {
                           onChange={async e => {
                             if (!e.target.value) return
                             const newCat = e.target.value as LeadCategory
-                              await updateLead(lead.id, { leadCategory: newCat })
-                              showToast(`✅ Kategori diubah ke ${newCat}`)
-                            showToast(`✅ Kategori diubah ke ${e.target.value}`)
+                            await updateLead(lead.id, { leadCategory: newCat })
+                            showToast(`✅ Kategori diubah ke ${newCat}`)
                           }}
                           className={`text-[10px] px-2 py-1 rounded-lg font-bold border-0 outline-none cursor-pointer ${
                             lead.leadCategory === 'HOT' ? 'bg-red-500/15 text-red-400' :
@@ -1563,12 +1563,29 @@ function LeadsView({ dark, currentUser }: { dark:boolean; currentUser:User }) {
                   onClick={()=>setDetailLead(lead)}>
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
-                      {/* Category badge */}
-                      {lead.leadCategory && (
-                        <span className={`inline-flex text-[10px] px-2 py-0.5 rounded-lg font-bold mb-1.5 ${CATEGORY_CFG[lead.leadCategory]?.bg} ${CATEGORY_CFG[lead.leadCategory]?.color}`}>
-                          {lead.leadCategory}
-                        </span>
-                      )}
+                      {/* Category selector — mobile interactive */}
+                      <div className="mb-1.5" onClick={e=>e.stopPropagation()}>
+                        <select
+                          value={lead.leadCategory ?? ''}
+                      onChange={async e => {
+                            if (!e.target.value) return
+                            const newCat = e.target.value as LeadCategory
+                            await updateLead(lead.id, { leadCategory: newCat })
+                            showToast(`✅ Kategori diubah ke ${newCat}`)
+                          }}
+                          className={`text-[10px] px-2 py-1 rounded-lg font-bold border-0 outline-none cursor-pointer ${
+                            lead.leadCategory === 'HOT'    ? 'bg-red-500/15 text-red-400' :
+                            lead.leadCategory === 'WARM'   ? 'bg-orange-500/15 text-orange-400' :
+                            lead.leadCategory === 'COLD'   ? 'bg-blue-500/15 text-blue-400' :
+                            lead.leadCategory === 'FREEZE' ? 'bg-cyan-500/15 text-cyan-400' :
+                            (dark ? 'bg-[#1e2d4a] text-slate-400' : 'bg-slate-100 text-slate-500')
+                          }`}>
+                          <option value="">— Pilih Kategori</option>
+                          {(['HOT','WARM','COLD','FREEZE'] as const).map(c2=>(
+                            <option key={c2} value={c2}>{c2==='HOT'?'🔥 HOT':c2==='WARM'?'🌤 WARM':c2==='COLD'?'❄ COLD':'🧊 FREEZE'}</option>
+                          ))}
+                        </select>
+                      </div>
                       {/* Names */}
                       <p className={`font-bold text-sm ${tx} truncate`}>{lead.childName}</p>
                       <p className={`text-xs ${mt} truncate`}>👨‍👩‍👦 {lead.parentName}</p>
@@ -2016,7 +2033,9 @@ export default function AlexandriaDashboard() {
             <img src="/logo-alexandria.jpeg" alt="Alexandria" className="lg:hidden w-7 h-7 rounded-lg object-cover shrink-0 border border-white/10"/>
             <div>
               <h1 className={`text-sm lg:text-base font-bold ${text}`}>{viewTitle[view]}</h1>
-              <p className={`text-[10px] lg:text-xs ${muted} hidden sm:block`}>Sabtu, 24 Mei 2026 · {user.name}</p>
+              <p className={`text-[10px] lg:text-xs ${muted}`}>
+                {new Date().toLocaleDateString('id-ID',{weekday:'long',day:'numeric',month:'long',year:'numeric'})} · {user.name}
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -2167,7 +2186,7 @@ export default function AlexandriaDashboard() {
             animate={{ opacity:1, scale:1, y:0 }}
             exit={{ opacity:0, scale:0.9, y:20 }}
             transition={{ type:'spring', stiffness:300, damping:25 }}
-            className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[9999] w-[90vw] max-w-sm"
+            className="fixed bottom-6 left-0 right-0 mx-auto z-[9999] w-[90vw] max-w-sm"
           >
             <div className="relative rounded-2xl overflow-hidden shadow-2xl shadow-black/40" style={{background:'linear-gradient(135deg,#1e3a8a,#7c3aed,#db2777)'}}>
               <div className="absolute inset-0 bg-black/10"/>
