@@ -66,10 +66,12 @@ function mapLead(row: Record<string, unknown>): Lead {
   }
 }
 
+// Singleton agar session tidak hilang antar render
+const supabase = createClient()
+
 export function useLeads(assignedTo?: string) {
   const [leads, setLeads] = useState<Lead[]>([])
   const [loading, setLoading] = useState(true)
-  const supabase = createClient()
 
   const fetchLeads = useCallback(async () => {
     setLoading(true)
@@ -96,8 +98,9 @@ export function useLeads(assignedTo?: string) {
   }, [fetchLeads]) // eslint-disable-line
 
   async function createLead(data: Omit<Lead, 'id' | 'createdAt' | 'updatedAt'>) {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return { error: new Error('Not authenticated') }
+    // Gunakan getSession() — lebih reliable untuk client-side
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session?.user) return { error: new Error('Not authenticated') }
 
     const { error } = await supabase.from('leads').insert({
       parent_name: data.parentName,
@@ -152,9 +155,11 @@ export function useLeads(assignedTo?: string) {
   }
 
   async function addNote(leadId: string, note: string, result?: string) {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return { error: new Error('Not authenticated') }
+    // Gunakan getSession() — lebih reliable untuk client-side
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session?.user) return { error: new Error('Not authenticated') }
 
+    const user = session.user
     const { data: profile } = await supabase.from('profiles').select('full_name').eq('id', user.id).single()
 
     const { error } = await supabase.from('lead_notes').insert({
