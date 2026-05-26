@@ -1238,7 +1238,7 @@ function StarRating({ value, onChange, dark }: { value:number; onChange?:(v:numb
 }
 
 function LeadsView({ dark, currentUser }: { dark:boolean; currentUser:User }) {
-  const { leads: dbLeads, loading, createLead, deleteLead } = useLeads()
+  const { leads: dbLeads, loading, createLead, deleteLead, updateLead } = useLeads()
   const [filterCategory, setFilterCategory] = useState<'all'|'HOT'|'COLD'|'WARM'|'FREEZE'>('all')
   const [filterStaff, setFilterStaff] = useState('all')
   const [search, setSearch] = useState('')
@@ -1263,6 +1263,12 @@ function LeadsView({ dark, currentUser }: { dark:boolean; currentUser:User }) {
   const inp = dark?'bg-[#0a1020] border-[#1e2d4a] text-slate-100 placeholder-slate-600':'bg-slate-50 border-slate-200 text-slate-800 placeholder-slate-400'
 
   const showToast = (msg:string) => { setToast(msg); setTimeout(()=>setToast(''), 3000) }
+
+  const handleCategoryChange = async (leadId: string, newCat: LeadCategory, e: React.MouseEvent) => {
+    e.stopPropagation()
+    await updateLead(leadId, { leadCategory: newCat })
+    showToast(`✅ Kategori diubah ke ${newCat}`)
+  }
 
   const filtered = useMemo(() => {
     return dbLeads.filter(l =>
@@ -1506,10 +1512,26 @@ function LeadsView({ dark, currentUser }: { dark:boolean; currentUser:User }) {
                         </div>
                       </td>
                       <td className={`px-4 py-3 ${mt}`}>{lead.parentArea ?? '—'}</td>
-                      <td className="px-4 py-3">
-                        {lead.leadCategory ? (
-                          <span className={`text-[10px] px-2 py-1 rounded-lg font-bold ${CATEGORY_CFG[lead.leadCategory]?.bg ?? ''} ${CATEGORY_CFG[lead.leadCategory]?.color ?? ''}`}>{lead.leadCategory}</span>
-                        ) : <span className={mt}>—</span>}
+            <td className="px-4 py-3" onClick={e=>e.stopPropagation()}>
+                        <select
+                          value={lead.leadCategory ?? ''}
+                          onChange={async e => {
+                            if (!e.target.value) return
+                            await updateLead(lead.id, { leadCategory: e.target.value as LeadCategory })
+                            showToast(`✅ Kategori diubah ke ${e.target.value}`)
+                          }}
+                          className={`text-[10px] px-2 py-1 rounded-lg font-bold border-0 outline-none cursor-pointer ${
+                            lead.leadCategory === 'HOT' ? 'bg-red-500/15 text-red-400' :
+                            lead.leadCategory === 'WARM' ? 'bg-orange-500/15 text-orange-400' :
+                            lead.leadCategory === 'COLD' ? 'bg-blue-500/15 text-blue-400' :
+                            lead.leadCategory === 'FREEZE' ? 'bg-cyan-500/15 text-cyan-400' :
+                            (dark ? 'bg-[#1e2d4a] text-sla-400' : 'bg-slate-100 text-slate-500')
+                          }`}>
+                          <option value="">— Pilih</option>
+                          {(['HOT','WARM','COLD','FREEZE'] as const).map(c2=>(
+                            <option key={c2} value={c2}>{c2==='HOT'?'🔥 HOT':c2==='WARM'?'🌤 WARM':c2==='COLD'?'❄ COLD':'🧊 FREEZE'}</option>
+                          ))}
+                        </select>
                       </td>
                       <td className="px-4 py-3">
                         {lead.interestRating ? <StarRating value={lead.interestRating} dark={dark}/> : <span className={mt}>—</span>}
