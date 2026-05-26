@@ -1874,6 +1874,7 @@ export default function AlexandriaDashboard() {
   const [view, setView] = useState<View>('dashboard')
   const [notifOpen, setNotifOpen] = useState(false)
   const [toasts, setToasts] = useState<{id:number;msg:string}[]>([])
+  const [showGreeting, setShowGreeting] = useState(false)
   const [greetingUser, setGreetingUser] = useState<User|null>(null)
 
   const d = dark
