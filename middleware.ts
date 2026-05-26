@@ -12,7 +12,7 @@ export async function middleware(request: NextRequest) {
         getAll() {
           return request.cookies.getAll()
         },
-        setAll(cookiesToSet) {
+        setAll(cookiesToSet: { name: string; value: string; options?: Record<string, unknown> }[]) {
           cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
           supabaseResponse = NextResponse.next({ request })
           cookiesToSet.forEach(({ name, value, options }) =>
@@ -23,7 +23,6 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  // Gunakan getSession (baca dari cookie) — tidak perlu network call ke Supabase
   const { data: { session } } = await supabase.auth.getSession()
 
   const isLoginPage = request.nextUrl.pathname.startsWith('/login')
