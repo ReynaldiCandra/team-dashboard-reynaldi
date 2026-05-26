@@ -1,13 +1,11 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Zap, RefreshCw, AlertCircle } from 'lucide-react'
 import { useAuth } from '@/hooks/use-auth'
 
 export default function LoginPage() {
-  const router = useRouter()
   const { signInWithPassword, signInWithMagicLink } = useAuth()
   const [tab, setTab] = useState<'password' | 'magic'>('password')
   const [email, setEmail] = useState('')
@@ -24,7 +22,8 @@ export default function LoginPage() {
       setError('Email atau password salah. Periksa kembali.')
       setLoading(false)
     } else {
-      router.push('/dashboard')
+      // Full page reload agar session cookie terbaca oleh middleware
+      window.location.href = '/dashboard'
     }
   }
 
