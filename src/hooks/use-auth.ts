@@ -7,7 +7,7 @@ import type { User } from '@supabase/supabase-js'
 export interface Profile {
   id: string
   fullName: string
-  role: 'superadmin' | 'manager' | 'leader' | 'staff'
+  role: 'manager' | 'staff'
   team: string
   avatarUrl?: string
   phone?: string
@@ -26,24 +26,27 @@ function mapProfile(row: Record<string, unknown>): Profile {
   }
 }
 
+// Singleton — session tidak hilang antar render
+const supabase = createClient()
+
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
-  const supabase = createClient()
 
   useEffect(() => {
-    const getUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      setUser(user)
-      if (user) {
-        const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single()
+    const init = async () => {
+      // Pakai getSession() — baca dari cookie, tidak perlu network call
+      const { data: { session } } = await supabase.auth.getSession()
+      setUser(session?.user ?? null)
+      if (session?.user) {
+        const { data } = await supabase.from('profiles').select('*').eq('id', session.user.id).single()
         if (data) setProfile(mapProfile(data as Record<string, unknown>))
       }
       setLoading(false)
     }
 
-    getUser()
+    init()
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_, session) => {
       setUser(session?.user ?? null)
@@ -56,7 +59,7 @@ export function useAuth() {
     })
 
     return () => subscription.unsubscribe()
-  }, []) // eslint-disable-line
+  }, [])
 
   async function signInWithPassword(email: string, password: string) {
     const { error } = await supabase.auth.signInWithPassword({ email, password })
@@ -76,6 +79,7 @@ export function useAuth() {
       await supabase.from('profiles').update({ is_online: false }).eq('id', user.id)
     }
     const { error } = await supabase.auth.signOut()
+    window.location.href = '/login'
     return { error }
   }
 

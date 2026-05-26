@@ -47,10 +47,12 @@ function mapRow(row: Record<string, unknown>): Performance {
   }
 }
 
+// Singleton — session tidak hilang antar render
+const supabase = createClient()
+
 export function usePerformance(staffId?: string) {
   const [records, setRecords] = useState<Performance[]>([])
   const [loading, setLoading] = useState(true)
-  const supabase = createClient()
 
   const fetchRecords = useCallback(async () => {
     setLoading(true)
@@ -66,7 +68,7 @@ export function usePerformance(staffId?: string) {
     if (error) console.error('fetchPerformance error:', error)
     setRecords((data ?? []).map(r => mapRow(r as Record<string, unknown>)))
     setLoading(false)
-  }, [staffId]) // eslint-disable-line
+  }, [staffId])
 
   useEffect(() => {
     fetchRecords()
@@ -75,11 +77,12 @@ export function usePerformance(staffId?: string) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'performances' }, fetchRecords)
       .subscribe()
     return () => { supabase.removeChannel(channel) }
-  }, [fetchRecords]) // eslint-disable-line
+  }, [fetchRecords])
 
   async function upsertPerformance(data: Omit<Performance, 'id' | 'score'>) {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return { error: new Error('Not authenticated') }
+    // Pakai getSession() — lebih reliable untuk client-side
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session?.user) return { error: new Error('Not authenticated') }
 
     const { error } = await supabase.from('performances').upsert({
       staff_id: data.staffId,
@@ -106,15 +109,16 @@ export function usePerformance(staffId?: string) {
   }
 
   async function checkIn() {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return { error: new Error('Not authenticated') }
+    // Pakai getSession() — lebih reliable untuk client-side
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session?.user) return { error: new Error('Not authenticated'), time: null }
 
     const now = new Date()
     const timeStr = `${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}`
     const dateStr = now.toISOString().split('T')[0]
 
     const { error } = await supabase.from('performances').upsert({
-      staff_id: user.id,
+      staff_id: session.user.id,
       record_date: dateStr,
       check_in_time: timeStr,
       attendance: 'hadir',
