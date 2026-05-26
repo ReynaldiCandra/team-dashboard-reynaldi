@@ -137,9 +137,16 @@ export function useLeads(assignedTo?: string) {
     if (updates.assignedTo !== undefined) payload.assigned_to = updates.assignedTo
     if (updates.assignedStaffName !== undefined) payload.assigned_staff_name = updates.assignedStaffName
 
+    // OPTIMISTIC UPDATE — update local state immediately so UI responds instantly
+    setLeads(prev => prev.map(l => l.id === leadId ? { ...l, .updates } : l))
+
     const { error } = await supabase.from('leads').update(payload).eq('id', leadId)
-    if (error) console.error('updateLead error:', error)
-    else await fetchLeads()
+    if (error) {
+      console.error('updateLead error:', error)
+      await fetchLeads() // revert on error
+    } else {
+      await fetchLeads() // confirm with server data
+    }
     return { error }
   }
 

@@ -1517,7 +1517,9 @@ function LeadsView({ dark, currentUser }: { dark:boolean; currentUser:User }) {
                           value={lead.leadCategory ?? ''}
                           onChange={async e => {
                             if (!e.target.value) return
-                            await updateLead(lead.id, { leadCategory: e.target.value as LeadCategory })
+                            const newCat = e.target.value as LeadCategory
+                              await updateLead(lead.id, { leadCategory: newCat })
+                              showToast(`✅ Kategori diubah ke ${newCat}`)
                             showToast(`✅ Kategori diubah ke ${e.target.value}`)
                           }}
                           className={`text-[10px] px-2 py-1 rounded-lg font-bold border-0 outline-none cursor-pointer ${
