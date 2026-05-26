@@ -1873,7 +1873,8 @@ export default function AlexandriaDashboard() {
   const [collapsed, setCollapsed] = useState(false)
   const [view, setView] = useState<View>('dashboard')
   const [notifOpen, setNotifOpen] = useState(false)
-  const [toasts, setToasts] = useState<{id:number;msg:string}[]>([])
+  const [toasts, setToe(false)
+  const [greetingUser, setGreetingUser] = useState<User|null>(null)
 
   const d = dark
   const bg = d ? 'bg-[#070d1a]' : 'bg-slate-100'
@@ -1884,7 +1885,7 @@ export default function AlexandriaDashboard() {
 
   const visibleNav = useMemo(()=>{ if(!user) return []; return NAV.filter(n=>(n.roles as string[]).includes(user.role)) }, [user])
 
-  if (!loggedIn || !user) return <LoginScreen onLogin={u=>{setUser(u);setLoggedIn(true)}}/>
+  if (!loggedIn || !user) return <LoginScreen onLogin={u=>{setUser(u);setLoggedIn(true);setGreetingUser(u);setShowGreeting(true);setTimeout(()=>setShowGreeting(false),4500)}}/>
 
   const NOTIFS = [
     {msg:'Mr. Farhan menambah 3 leads baru',time:'2 menit lalu',icon:Users,color:'text-blue-400'},
@@ -2033,9 +2034,14 @@ export default function AlexandriaDashboard() {
               {d ? <Sun size={15}/> : <Moon size={15}/>}
             </button>
             {/* Mobile logout */}
-            <button onClick={()=>{setLoggedIn(false);setUser(null)}} className={`lg:hidden w-9 h-9 rounded-xl flex items-center justify-center transition-colors ${d?'bg-red-500/15 text-red-400 hover:bg-red-500/25':'bg-red-50 text-red-500 hover:bg-red-100'}`}>
-              <LogOut size={15}/>
-            </button>
+            <button onClick={()=>{setLoggedIn(false);setUser(null)}} className={`lg:hidden w-9 h-9 rounded-xl flex items-center justify-center transition-colors ${d?'bg-red-500/15 text-red-400 hover:bg-red-500/25':'bg-red-50 text-red-500 hover:bg-red-100{/* User avatar chip */}
+            <div className={`hidden lg:flex items-center gap-2 px-2.5 py-1.5 rounded-xl border cursor-default ${d?'bg-[#111d35] border-[#1e2d4a]':'bg-white border-slate-200'}`}>
+              <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-pink-500 to-orange-400 flex items-center justify-center text-white font-bold text-xs shadow-md">{user.avatar}</div>
+              <div className="min-w-0">
+                <p className={`text-xs font-semibold ${text} leading-none`}>{user.name}</p>
+                <p className={`text-[9px] ${muted} capitalize leading-none mt-0.5`}>{user.role}</p>
+              </div>
+            </div>
           </div>
         </header>
 
@@ -2147,6 +2153,47 @@ export default function AlexandriaDashboard() {
         {/* Safe area bottom padding */}
         <div className="h-safe-bottom pb-1"/>
       </div>
+      {/* ── Welcome Greeting Modal ── */}
+      <AnimatePresence>
+        {showGreeting && greetingUser &&0, scale:0.8, y:40 }}
+            animate={{ opacity:1, scale:1, y:0 }}
+            exit={{ opacity:0, scale:0.9, y:20 }}
+            transition={{ type:'spring', stiffness:300, damping:25 }}
+            className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[9999] w-[90vw] max-w-sm"
+          >
+            <div className="relative rounded-2xl overflow-hidden shadow-2xl shadow-black/40" style={{background:'linear-gradient(135deg,#1e3a8a,#7c3aed,#db2777)'}}>
+              <div className="absolute inset-0 bg-black/10"/>
+              <div className="relative px-5 py-4 flex items-center gap-4">
+                <motion.div
+                  animate={{ rotate:[0,10,-10,0], scale:[1,1.1,1] }}
+                  transition={{ repeat:2, duration:0.4 }}
+                  className="w-14 h-14 rounded-2xl bg-white/20 backdrop-blur flex items-center justify-center text-2xl shrink-0 shadow-lg"
+                >
+                  {(()=>{const h=new Date().getHours();return h<11?'☀️':h<15?'🌤':h<18?'🌅':'🌙'})()}
+      </motion.div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-white/70 text-[10px] font-semibold uppercase tracking-widest">
+                    {(()=>{const h=new Date().getHours();return h<11?'Selamat Pagi':h<15?'Selamat Siang':h<18?'Selamat Sore':'Selamat Malam'})()}
+                  </p>
+                  <p className="text-white font-bold text-lg leading-tight mt-0.5">{greetingUser.name}! 👋</p>
+                  <p className="text-white/75 text-xs mt-1">
+                    {greetingUser.role === 'manager' ? '🏆 Semangat memimpin tim hari ini!' : '💪 Semangat mencapai target hari ini!'}
+                  </p>
+                </div>
+                <button onClick={()=>setShowGreeting(false)} className="w-7 h-7 rounded-xl bg-white/20 hover:bg-white/30 flex items-center justify-center shrink-0 tran-colors">
+                  <X size={13} className="text-white"/>
+                </button>
+              </div>
+              <motion.div
+                initial={{ width:'100%' }}
+                animate={{ width:'0%' }}
+                transition={{ duration:4.5, ease:'linear' }}
+                className="h-0.5 bg-white/40"
+              />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
