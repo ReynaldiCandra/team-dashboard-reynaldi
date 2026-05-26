@@ -2034,7 +2034,10 @@ export default function AlexandriaDashboard() {
               {d ? <Sun size={15}/> : <Moon size={15}/>}
             </button>
             {/* Mobile logout */}
-            <button onClick={()=>{setLoggedIn(false);setUser(null)}} className={`lg:hidden w-9 h-9 rounded-xl flex items-center justify-center transition-colors ${d?'bg-red-500/15 text-red-400 hover:bg-red-500/25':'bg-red-50 text-red-500 hover:bg-red-100{/* User avatar chip */}
+            <button onClick={()=>{setLoggedIn(false);setUser(null)}} className={`lg:hidden w-9 h-9 rounded-xl flex items-center justify-center transition-colors ${d?'bg-red-500/15 text-red-400 hover:bg-red-500/25':'bg-red-50 text-red-500 hover:bg-red-100'}`}>
+              <LogOut size={15}/>
+            </button>
+            {/* User avatar chip */}
             <div className={`hidden lg:flex items-center gap-2 px-2.5 py-1.5 rounded-xl border cursor-default ${d?'bg-[#111d35] border-[#1e2d4a]':'bg-white border-slate-200'}`}>
               <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-pink-500 to-orange-400 flex items-center justify-center text-white font-bold text-xs shadow-md">{user.avatar}</div>
               <div className="min-w-0">
