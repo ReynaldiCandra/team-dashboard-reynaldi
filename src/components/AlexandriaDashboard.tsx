@@ -1071,10 +1071,30 @@ function LoginScreen({ onLogin }: { onLogin:(u:User)=>void }) {
 
   const handle = async () => {
     setLoading(true); setError('')
-    await new Promise(r=>setTimeout(r,900))
-    const found = USERS.find(u=>u.email===email)
-    if (found && pass==='admin123') { onLogin(found) }
-    else { setError('Email atau password salah. Coba: reynaldi@alex.id / admin123'); setLoading(false) }
+    try {
+      const { createClient } = await import('@/lib/supabase/client')
+      const supabase = createClient()
+      const { data, error: authErr } = await supabase.auth.signInWithPassword({ email, password: pass })
+      if (authErr || !data.user) {
+        setError(authErr?.message || 'Email atau password salah.')
+        setLoading(false); return
+      }
+      const { data: profile } = await supabase.from('profiles').select('*').eq('id', data.user.id).single()
+      const u: User = {
+        id: data.user.id,
+        name: profile?.full_name || data.user.email || 'User',
+        role: (profile?.role || 'staff') as Role,
+        team: profile?.team || '',
+        avatar: ((profile?.full_name || data.user.email || 'U').charAt(0)).toUpperCase(),
+        email: data.user.email || '',
+        online: true,
+        revenue: 0, leads: 0, closing: 0, score: 0,
+      }
+      onLogin(u)
+    } catch(e) {
+      setError('Gagal login: ' + e.message)
+      setLoading(false)
+    }
   }
 
   return (
