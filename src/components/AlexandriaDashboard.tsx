@@ -1092,7 +1092,7 @@ function LoginScreen({ onLogin }: { onLogin:(u:User)=>void }) {
       }
       onLogin(u)
     } catch(e) {
-      setError('Gagal login: ' + e.message)
+      setError('Gagal login: ' + (e instanceof Error ? e.message : 'Unknown error'))
       setLoading(false)
     }
   }
