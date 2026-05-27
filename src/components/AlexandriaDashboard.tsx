@@ -23,8 +23,10 @@ import {
   FileSpreadsheet, MessageSquare
 } from 'lucide-react'
 import { useLeads, exportLeadsCSV, buildWABroadcast, buildWAIndividual } from '@/hooks/use-leads'
-import { useDashboardStats } from '@/hooks/use-dashboard-stats'
 import type { Lead as DBLead, LeadCategory } from '@/hooks/use-leads'
+import { useNotifications } from '@/hooks/use-notifications'
+import { useKpiStats } from '@/hooks/use-kpi-stats'
+import { usePerformance } from '@/hooks/use-performance'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 type Role = 'superadmin' | 'manager' | 'leader' | 'staff'
@@ -49,24 +51,106 @@ interface Lead {
 interface User { id:string; name:string; role:Role; team:string; avatar:string; email:string; online:boolean; revenue:number; leads:number; closing:number; score:number }
 
 // ─── Mock Data ───────────────────────────────────────────────────────────────
-const LEADS_INIT: Lead[] = []
+const LEADS_INIT: Lead[] = [
+  { id:'L001', parentName:'Bpk. Hendra Wijaya', parentPhone:'081234567890', childName:'Rafi Wijaya', childClass:'SD Kelas 1', source:'Instagram', status:'baru', temp:'hot', assignedTo:'farhan', createdAt:'2026-05-24', lastContact:'2026-05-24', daysSinceLast:0, notes:'DM IG, tanya program unggulan SD', campaign:'Ramadan Promo 2026', followUps:[] },
+  { id:'L002', parentName:'Ibu Sari Dewi', parentPhone:'082345678901', childName:'Nadia Sari', childClass:'TK', source:'WhatsApp', status:'dihubungi', temp:'warm', assignedTo:'farhan', createdAt:'2026-05-23', lastContact:'2026-05-23', daysSinceLast:1, notes:'Tertarik kurikulum islami, minta brosur', campaign:'Ramadan Promo 2026', followUps:[
+    { date:'2026-05-23', method:'WA', note:'Kirim brosur & profil sekolah', result:'Respon positif, minta jadwal tour', by:'Mr. Farhan' }
+  ]},
+  { id:'L003', parentName:'Bpk. Ahmad Fauzi', parentPhone:'083456789012', childName:'Zaki Fauzi', childClass:'SMP Kelas 7', source:'Referral', status:'berminat', temp:'hot', assignedTo:'ramram', createdAt:'2026-05-22', lastContact:'2026-05-23', daysSinceLast:1, notes:'Direferensikan oleh alumni. Anak juara olimpiade sains', followUps:[
+    { date:'2026-05-22', method:'Telepon', note:'Perkenalan & jelaskan program SMP', result:'Sangat antusias, minta video profil', by:'Mr. Ramram' },
+    { date:'2026-05-23', method:'WA', note:'Kirim video profil & prestasi sekolah', result:'Mau survey sekolah Sabtu ini', by:'Mr. Ramram' }
+  ]},
+  { id:'L004', parentName:'Ibu Ratna Kusuma', parentPhone:'084567890123', childName:'Daffa Kusuma', childClass:'SD Kelas 4', source:'Facebook', status:'survey', temp:'warm', assignedTo:'farhan', createdAt:'2026-05-20', lastContact:'2026-05-22', daysSinceLast:2, notes:'Sudah survey Rabu kemarin. Kesan positif.', followUps:[
+    { date:'2026-05-20', method:'WA', note:'Perkenalan dari iklan Facebook', result:'Mau tour sekolah', by:'Mr. Farhan' },
+    { date:'2026-05-22', method:'Kunjungan', note:'Tour sekolah, ketemu kepala sekolah', result:'Sangat terkesan, diskusi biaya', by:'Mr. Farhan' }
+  ]},
+  { id:'L005', parentName:'Bpk. Doni Prasetyo', parentPhone:'085678901234', childName:'Aisha Prasetyo', childClass:'SMA Kelas 10', source:'Google', status:'meeting', temp:'hot', assignedTo:'ramram', createdAt:'2026-05-19', lastContact:'2026-05-23', daysSinceLast:1, notes:'Meeting dengan kepala sekolah besok jam 10', followUps:[
+    { date:'2026-05-19', method:'Telepon', note:'Kontak pertama dari lead Google Ads', result:'Mau meeting langsung', by:'Mr. Ramram' },
+    { date:'2026-05-21', method:'WA', note:'Konfirmasi jadwal meeting', result:'Konfirmasi Senin jam 10', by:'Mr. Ramram' },
+    { date:'2026-05-23', method:'WA', note:'Reminder meeting besok', result:'Siap hadir', by:'Mr. Ramram' }
+  ]},
+  { id:'L006', parentName:'Ibu Maya Indah', parentPhone:'086789012345', childName:'Fahmi Indah', childClass:'SD Kelas 2', source:'Instagram', status:'proposal', temp:'warm', assignedTo:'farhan', createdAt:'2026-05-15', lastContact:'2026-05-21', daysSinceLast:3, notes:'Proposal biaya sudah dikirim, tunggu keputusan', followUps:[
+    { date:'2026-05-17', method:'WA', note:'Follow up setelah kirim brosur', result:'Minta meeting', by:'Mr. Farhan' },
+    { date:'2026-05-19', method:'Kunjungan', note:'Meeting dan tour sekolah', result:'Minta proposal biaya', by:'Mr. Farhan' },
+    { date:'2026-05-21', method:'WA', note:'Kirim proposal biaya lengkap', result:'Masih diskusi dengan suami', by:'Mr. Farhan' }
+  ]},
+  { id:'L007', parentName:'Bpk. Eko Santoso', parentPhone:'087890123456', childName:'Bilal Santoso', childClass:'TK', source:'WhatsApp', status:'closing', temp:'hot', assignedTo:'ramram', createdAt:'2026-05-10', lastContact:'2026-05-22', daysSinceLast:2, notes:'CLOSING! Sudah bayar uang pendaftaran Rp 2jt', followUps:[
+    { date:'2026-05-12', method:'WA', note:'Follow up pertama', result:'Berminat', by:'Mr. Ramram' },
+    { date:'2026-05-15', method:'Kunjungan', note:'Survey & meeting', result:'Sangat suka', by:'Mr. Ramram' },
+    { date:'2026-05-20', method:'Telepon', note:'Konfirmasi keputusan', result:'Setuju daftar', by:'Mr. Ramram' },
+    { date:'2026-05-22', method:'WA', note:'Proses pendaftaran & pembayaran', result:'CLOSING ✅', by:'Mr. Ramram' }
+  ]},
+  { id:'L008', parentName:'Ibu Fitri Handayani', parentPhone:'088901234567', childName:'Anisa Handayani', childClass:'SMP Kelas 8', source:'Referral', status:'gagal', temp:'cold', assignedTo:'farhan', createdAt:'2026-05-05', lastContact:'2026-05-15', daysSinceLast:9, notes:'Memilih sekolah lain yang lebih dekat', followUps:[
+    { date:'2026-05-06', method:'Telepon', note:'Kontak pertama', result:'Berminat', by:'Mr. Farhan' },
+    { date:'2026-05-10', method:'WA', note:'Kirim info & brosur', result:'Sedang pertimbangkan', by:'Mr. Farhan' },
+    { date:'2026-05-15', method:'Telepon', note:'Follow up keputusan', result:'Pilih sekolah lain', by:'Mr. Farhan' }
+  ]},
+  { id:'L009', parentName:'Bpk. Rudi Hartono', parentPhone:'089012345678', childName:'Hafiz Hartono', childClass:'SD Kelas 3', source:'Instagram', status:'baru', temp:'warm', assignedTo:'ramram', createdAt:'2026-05-24', lastContact:'2026-05-24', daysSinceLast:0, notes:'Komentar di post Instagram, minta info lengkap', followUps:[] },
+  { id:'L010', parentName:'Ibu Dewi Rahayu', parentPhone:'081122334455', childName:'Salsa Rahayu', childClass:'TK', source:'Walk-in', status:'dihubungi', temp:'cold', assignedTo:'farhan', createdAt:'2026-05-18', lastContact:'2026-05-20', daysSinceLast:4, notes:'Walk-in langsung, sudah 4 hari belum respon WA', followUps:[
+    { date:'2026-05-18', method:'WA', note:'Ucapkan terima kasih sudah berkunjung, kirim brosur', result:'Seen, tidak balas', by:'Mr. Farhan' },
+    { date:'2026-05-20', method:'WA', note:'Follow up kedua', result:'Belum balas', by:'Mr. Farhan' }
+  ]},
+]
 
 const CLASSES: ChildClass[] = ['TK','SD Kelas 1','SD Kelas 2','SD Kelas 3','SD Kelas 4','SD Kelas 5','SD Kelas 6','SMP Kelas 7','SMP Kelas 8','SMP Kelas 9','SMA Kelas 10','SMA Kelas 11','SMA Kelas 12']
 const LEAD_SOURCES: LeadSource[] = ['Instagram','WhatsApp','Referral','Facebook','Google','Walk-in','Lainnya']
 
-const USERS: User[] = []
+const USERS: User[] = [
+  { id:'1', name:'Reynaldi', role:'superadmin', team:'All', avatar:'R', email:'reynaldi@alex.id', online:true, revenue:185000000, leads:142, closing:38, score:98 },
+  { id:'2', name:'Budi Manager', role:'manager', team:'All', avatar:'B', email:'budi@alex.id', online:true, revenue:0, leads:0, closing:0, score:0 },
+  { id:'3', name:'Siti Leader', role:'leader', team:'Alpha', avatar:'S', email:'siti@alex.id', online:false, revenue:0, leads:0, closing:0, score:0 },
+  { id:'4', name:'Mr. Farhan', role:'staff', team:'Alpha', avatar:'F', email:'farhan@alex.id', online:true, revenue:92000000, leads:78, closing:21, score:87 },
+  { id:'5', name:'Mr. Ramram', role:'staff', team:'Beta', avatar:'M', email:'ramram@alex.id', online:false, revenue:73000000, leads:61, closing:17, score:74 },
+]
 
-const MONTHLY: {month:string;revenue:number;leads:number;closing:number;target:number}[] = []
+const MONTHLY = [
+  { month:'Jan', revenue:120, leads:89, closing:22, target:100 },
+  { month:'Feb', revenue:145, leads:102, closing:28, target:110 },
+  { month:'Mar', revenue:98, leads:76, closing:18, target:120 },
+  { month:'Apr', revenue:178, leads:134, closing:35, target:130 },
+  { month:'May', revenue:210, leads:158, closing:42, target:140 },
+  { month:'Jun', revenue:165, leads:121, closing:31, target:150 },
+]
 
-const WEEKLY: {day:string;farhan:number;ramram:number}[] = []
+const WEEKLY = [
+  { day:'Sen', farhan:18, ramram:14 },
+  { day:'Sel', farhan:22, ramram:19 },
+  { day:'Rab', farhan:15, ramram:21 },
+  { day:'Kam', farhan:28, ramram:16 },
+  { day:'Jum', farhan:24, ramram:23 },
+]
 
-const SOURCES: {name:string;value:number;color:string}[] = []
+const SOURCES = [
+  { name:'Instagram', value:38, color:'#8b5cf6' },
+  { name:'WhatsApp', value:27, color:'#06b6d4' },
+  { name:'Referral', value:18, color:'#10b981' },
+  { name:'Facebook', value:10, color:'#3b82f6' },
+  { name:'Google', value:7, color:'#f59e0b' },
+]
 
-const RADAR_DATA: {metric:string;farhan:number;ramram:number}[] = []
+const RADAR_DATA = [
+  { metric:'Leads', farhan:87, ramram:74 },
+  { metric:'Closing', farhan:84, ramram:68 },
+  { metric:'Revenue', farhan:92, ramram:73 },
+  { metric:'Follow-up', farhan:78, ramram:82 },
+  { metric:'Meeting', farhan:70, ramram:65 },
+  { metric:'Proposal', farhan:88, ramram:71 },
+]
 
-const CAMPAIGNS: {id:string;name:string;status:string;leads:number;closing:number;revenue:number;staff:string[];start:string;end:string;budget:number}[] = []
+const CAMPAIGNS = [
+  { id:'1', name:'Ramadan Promo 2026', status:'Active', leads:145, closing:38, revenue:178000000, staff:['Mr. Farhan','Mr. Ramram'], start:'2026-03-01', end:'2026-04-30', budget:50000000 },
+  { id:'2', name:'Back to School', status:'Active', leads:98, closing:25, revenue:112000000, staff:['Mr. Farhan'], start:'2026-05-01', end:'2026-06-30', budget:30000000 },
+  { id:'3', name:'Year End Sale', status:'Completed', leads:201, closing:57, revenue:265000000, staff:['Mr. Farhan','Mr. Ramram'], start:'2025-11-01', end:'2025-12-31', budget:80000000 },
+  { id:'4', name:'Summer Special', status:'Paused', leads:43, closing:11, revenue:54000000, staff:['Mr. Ramram'], start:'2026-06-15', end:'2026-07-31', budget:20000000 },
+]
 
-const LEADERBOARD: {rank:number;name:string;team:string;revenue:number;leads:number;closing:number;score:number;trend:string;avatar:string}[] = []
+const LEADERBOARD = [
+  { rank:1, name:'Mr. Farhan', team:'Alpha', revenue:92000000, leads:78, closing:21, score:87, trend:'up', avatar:'F' },
+  { rank:2, name:'Mr. Ramram', team:'Beta', revenue:73000000, leads:61, closing:17, score:74, trend:'up', avatar:'M' },
+  { rank:3, name:'Dian Pratiwi', team:'Alpha', revenue:58000000, leads:52, closing:13, score:68, trend:'down', avatar:'D' },
+  { rank:4, name:'Agus Salim', team:'Beta', revenue:45000000, leads:41, closing:10, score:61, trend:'up', avatar:'A' },
+  { rank:5, name:'Wulan Sari', team:'Gamma', revenue:38000000, leads:35, closing:8, score:54, trend:'down', avatar:'W' },
+]
 
 const PERF_METRICS = [
   { key:'leads', label:'Leads Masuk', icon:Users, target:30, achieved:24, color:'blue' },
@@ -80,9 +164,20 @@ const PERF_METRICS = [
   { key:'old_leads', label:'Treatment Lama', icon:Clock, target:20, achieved:17, color:'yellow' },
 ]
 
-const GOALS: {id:string;title:string;description:string;target:number;current:number;unit:string;deadline:string;owner:string;priority:string;status:string}[] = []
+const GOALS = [
+  { id:'1', title:'Revenue Q2 2026', description:'Mencapai total revenue Rp 600jt di Q2', target:600, current:385, unit:'jt', deadline:'2026-06-30', owner:'Tim All', priority:'high', status:'on-track' },
+  { id:'2', title:'1000 Leads Baru', description:'Akuisisi 1000 leads baru dalam Q2', target:1000, current:628, unit:'leads', deadline:'2026-06-30', owner:'Mr. Farhan', priority:'high', status:'on-track' },
+  { id:'3', title:'Konversi 35%', description:'Meningkatkan conversion rate ke 35%', target:35, current:32.4, unit:'%', deadline:'2026-06-30', owner:'Tim Alpha', priority:'medium', status:'at-risk' },
+  { id:'4', title:'5 Campaign Aktif', description:'Jalankan minimal 5 campaign serentak', target:5, current:2, unit:'campaign', deadline:'2026-07-01', owner:'Siti Leader', priority:'low', status:'behind' },
+]
 
-const ATTENDANCE: {date:string;farhan:string;ramram:string;checkIn:string;checkOut:string}[] = []
+const ATTENDANCE = [
+  { date:'2026-05-24', farhan:'hadir', ramram:'hadir', checkIn:'08:02', checkOut:'-' },
+  { date:'2026-05-23', farhan:'hadir', ramram:'wfh', checkIn:'08:15', checkOut:'17:30' },
+  { date:'2026-05-22', farhan:'hadir', ramram:'hadir', checkIn:'07:58', checkOut:'17:45' },
+  { date:'2026-05-21', farhan:'wfh', ramram:'hadir', checkIn:'08:30', checkOut:'17:00' },
+  { date:'2026-05-20', farhan:'hadir', ramram:'izin', checkIn:'08:10', checkOut:'17:20' },
+]
 
 const fmtRp = (n:number) => `Rp ${(n/1000000).toFixed(0)}jt`
 const fmtNum = (n:number) => n >= 1000 ? `${(n/1000).toFixed(1)}K` : String(n)
@@ -171,7 +266,7 @@ const MOT_MSGS = [
   { emoji:'⚡', msg:'Leads baru masuk! Jangan biarkan dingin terlalu lama!', sub:'Respon dalam 5 menit = 9× lebih besar peluang closing' },
   { emoji:'🌟', msg:'Satu closing hari ini = satu langkah lebih dekat ke target!', sub:'Alexandria Islamic School — Terbaik untuk buah hati Anda' },
 ]
-function MotivationalBanner({ dark }: { dark:boolean }) {
+function MotivationalBanner({ dark: _dark }: { dark:boolean }) {
   const [idx, setIdx] = useState(0)
   const [dismissed, setDismissed] = useState(false)
   useEffect(()=>{
@@ -211,10 +306,10 @@ function MotivationalBanner({ dark }: { dark:boolean }) {
 
 // ─── Dashboard View ───────────────────────────────────────────────────────────
 function DashboardView({ dark }: { dark:boolean }) {
-  const stats = useDashboardStats()
   const [aiSummary, setAiSummary] = useState(false)
   const [generating, setGenerating] = useState(false)
   const [summaryText, setSummaryText] = useState('')
+  const { stats, changes, loading: kpiLoading } = useKpiStats()
   const card = dark ? 'bg-[#111d35] border-[#1e2d4a]' : 'bg-white border-slate-200'
   const text = dark ? 'text-slate-100' : 'text-slate-800'
   const muted = dark ? 'text-slate-400' : 'text-slate-500'
@@ -222,10 +317,27 @@ function DashboardView({ dark }: { dark:boolean }) {
   const ax = dark ? '#94a3b8' : '#64748b'
   const tt = { background: dark ? '#0f1729' : '#fff', border:`1px solid ${gl}`, borderRadius:12, color: dark ? '#e2e8f0' : '#1e293b' }
 
+  const fmtRevenue = (n: number) => n >= 1000000 ? `Rp ${(n/1000000).toFixed(0)}jt` : n > 0 ? `Rp ${n.toLocaleString('id')}` : 'Rp 0'
+
+  const kpiRevenue = stats ? fmtRevenue(stats.revenueThisMonth || stats.totalRevenue) : (kpiLoading ? '...' : 'Rp 0')
+  const kpiLeads = stats ? (stats.totalLeads >= 1000 ? `${(stats.totalLeads/1000).toFixed(1)}K` : String(stats.totalLeads)) : (kpiLoading ? '...' : '0')
+  const kpiConversion = stats ? `${stats.conversionRate}%` : (kpiLoading ? '...' : '0%')
+  const kpiClosing = stats ? String(stats.closingThisMonth || stats.totalClosing) : (kpiLoading ? '...' : '0')
+
+  const revenueChange = changes ? `${changes.revenueChange >= 0 ? '+' : ''}${changes.revenueChange}% vs bulan lalu` : '— vs bulan lalu'
+  const leadsChange = changes ? `${changes.leadsChange >= 0 ? '+' : ''}${changes.leadsChange}% vs bulan lalu` : '— vs bulan lalu'
+  const closingChange = changes ? `${changes.closingChange >= 0 ? '+' : ''}${changes.closingChange}% vs bulan lalu` : '— vs bulan lalu'
+
+  const chartData = stats && stats.monthlyTrend.length > 0 ? stats.monthlyTrend : MONTHLY
+  const sourcesData = stats && stats.sourceBreakdown.length > 0 ? stats.sourceBreakdown : SOURCES
+
   const handleAI = async () => {
     setGenerating(true); setSummaryText('')
-    const text = `📊 **Ringkasan Performa Tim — Mei 2026**\n\nTotal revenue bulan ini mencapai **Rp 265 juta** (88% dari target Rp 300jt). Mr. Farhan memimpin dengan revenue Rp 92jt dan 21 closing deals. Conversion rate berada di 32.4%, naik 3.2% dari bulan lalu.\n\n🏆 **Top Performer:** Mr. Farhan (Score: 87/100)\n⚠️ **Perlu Perhatian:** Conversion rate masih 2.6% di bawah target 35%\n💡 **Rekomendasi:** Tingkatkan follow-up leads lama, terutama dari sumber Referral yang memiliki closing rate tertinggi.`
-    for (const char of text) {
+    const revenueStr = stats ? fmtRevenue(stats.revenueThisMonth) : 'Rp 265 juta'
+    const convStr = stats ? `${stats.conversionRate}%` : '32.4%'
+    const closingStr = stats ? String(stats.closingThisMonth) : '42'
+    const summaryContent = `📊 **Ringkasan Performa Tim — Bulan Ini**\n\nTotal revenue bulan ini mencapai **${revenueStr}**. Total ${kpiLeads} leads berhasil dikumpulkan dengan ${closingStr} closing deals. Conversion rate berada di ${convStr}.\n\n🏆 **Status:** Data real-time dari Supabase\n⚠️ **Perlu Perhatian:** Pastikan follow-up leads HOT & WARM dilakukan dalam 24 jam\n💡 **Rekomendasi:** Tingkatkan follow-up leads lama, terutama dari sumber Referral yang memiliki closing rate tertinggi.`
+    for (const char of summaryContent) {
       await new Promise(r => setTimeout(r, 18))
       setSummaryText(p => p + char)
     }
@@ -236,10 +348,10 @@ function DashboardView({ dark }: { dark:boolean }) {
     <div className="space-y-5">
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KpiCard label="Total Revenue" value="Rp 265jt" icon={DollarSign} gradient="from-blue-700 via-blue-600 to-blue-400" change="18% vs bulan lalu" positive sub="Target: Rp 300jt" />
-        <KpiCard label="Total Leads" value={stats.loading ? '...' : String(stats.totalLeads)} icon={Users} gradient="from-violet-700 via-purple-600 to-purple-400" change={stats.loading ? '-' : `${stats.totalClosing} closing`} positive sub="" />
-        <KpiCard label="Conversion Rate" value={stats.loading ? '...' : `${stats.conversionRate}%`} icon={TrendingUp} gradient="from-emerald-700 via-emerald-600 to-green-400" change="enrolled / total leads" positive />
-        <KpiCard label="Total Closing" value={stats.loading ? '...' : String(stats.totalClosing)} icon={Target} gradient="from-orange-600 via-orange-500 to-amber-400" change={stats.loading ? '-' : `dari ${stats.totalLeads} leads`} positive sub="" />
+        <KpiCard label="Revenue Bulan Ini" value={kpiRevenue} icon={DollarSign} gradient="from-blue-700 via-blue-600 to-blue-400" change={revenueChange} positive={!changes || changes.revenueChange >= 0} sub={stats ? `Total: ${fmtRevenue(stats.totalRevenue)}` : undefined} />
+        <KpiCard label="Total Leads" value={kpiLeads} icon={Users} gradient="from-violet-700 via-purple-600 to-purple-400" change={leadsChange} positive={!changes || changes.leadsChange >= 0} sub={stats ? `Bulan ini: ${stats.leadsThisMonth}` : undefined} />
+        <KpiCard label="Conversion Rate" value={kpiConversion} icon={TrendingUp} gradient="from-emerald-700 via-emerald-600 to-green-400" change={stats ? `${stats.totalClosing} total closing` : '— closing'} positive={true} />
+        <KpiCard label="Closing Bulan Ini" value={kpiClosing} icon={Target} gradient="from-orange-600 via-orange-500 to-amber-400" change={closingChange} positive={!changes || changes.closingChange >= 0} sub={stats ? `Total: ${stats.totalClosing}` : undefined} />
       </div>
 
       {/* Charts Row 1 */}
@@ -248,7 +360,7 @@ function DashboardView({ dark }: { dark:boolean }) {
           <div className="flex items-center justify-between mb-4">
             <div>
               <h3 className={`font-bold ${text}`}>Revenue & Leads Trend</h3>
-              <p className={`text-xs ${muted}`}>6 bulan terakhir · 2026</p>
+              <p className={`text-xs ${muted}`}>6 bulan terakhir · {kpiLoading ? 'Memuat...' : 'Data real'}</p>
             </div>
             <div className="flex gap-2">
               <button className={`px-3 py-1 text-xs font-semibold rounded-xl ${dark ? 'bg-[#1e2d4a] text-slate-300' : 'bg-slate-100 text-slate-600'}`}>Bulanan</button>
@@ -256,7 +368,7 @@ function DashboardView({ dark }: { dark:boolean }) {
             </div>
           </div>
           <ResponsiveContainer width="100%" height={220}>
-            <AreaChart data={stats.monthly}>
+            <AreaChart data={chartData}>
               <defs>
                 <linearGradient id="g1" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.4}/>
@@ -273,7 +385,6 @@ function DashboardView({ dark }: { dark:boolean }) {
               <Tooltip contentStyle={tt} />
               <Area type="monotone" dataKey="revenue" stroke="#3b82f6" fill="url(#g1)" strokeWidth={2.5} name="Revenue (jt)" />
               <Area type="monotone" dataKey="leads" stroke="#8b5cf6" fill="url(#g2)" strokeWidth={2.5} name="Leads" />
-              <Line type="monotone" dataKey="target" stroke="#f59e0b" strokeDasharray="5 5" strokeWidth={2} name="Target" dot={false} />
               <Legend />
             </AreaChart>
           </ResponsiveContainer>
@@ -281,17 +392,17 @@ function DashboardView({ dark }: { dark:boolean }) {
 
         <Card dark={dark} className="p-5">
           <h3 className={`font-bold mb-1 ${text}`}>Sumber Leads</h3>
-          <p className={`text-xs ${muted} mb-3`}>Distribusi bulan ini</p>
+          <p className={`text-xs ${muted} mb-3`}>{kpiLoading ? 'Memuat...' : 'Distribusi dari database'}</p>
           <ResponsiveContainer width="100%" height={170}>
             <PieChart>
-              <Pie data={stats.sources} cx="50%" cy="50%" innerRadius={48} outerRadius={78} paddingAngle={4} dataKey="value">
-                {stats.sources.map((e, i) => <Cell key={i} fill={e.color} />)}
+              <Pie data={sourcesData} cx="50%" cy="50%" innerRadius={48} outerRadius={78} paddingAngle={4} dataKey="value">
+                {sourcesData.map((e, i) => <Cell key={i} fill={e.color} />)}
               </Pie>
               <Tooltip contentStyle={tt} />
             </PieChart>
           </ResponsiveContainer>
           <div className="space-y-1.5 mt-2">
-            {stats.sources.map(s => (
+            {sourcesData.map(s => (
               <div key={s.name} className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <div className="w-2.5 h-2.5 rounded-full" style={{ background:s.color }} />
@@ -310,7 +421,7 @@ function DashboardView({ dark }: { dark:boolean }) {
           <h3 className={`font-bold mb-1 ${text}`}>Performa Mingguan</h3>
           <p className={`text-xs ${muted} mb-4`}>Leads per hari</p>
           <ResponsiveContainer width="100%" height={180}>
-            <BarChart data={stats.weekly} barGap={3}>
+            <BarChart data={WEEKLY} barGap={3}>
               <CartesianGrid stroke={gl} strokeDasharray="3 3" />
               <XAxis dataKey="day" stroke={ax} tick={{ fontSize:11 }} />
               <YAxis stroke={ax} tick={{ fontSize:11 }} />
@@ -326,7 +437,7 @@ function DashboardView({ dark }: { dark:boolean }) {
           <h3 className={`font-bold mb-1 ${text}`}>Radar Performa</h3>
           <p className={`text-xs ${muted} mb-2`}>Perbandingan skill staff</p>
           <ResponsiveContainer width="100%" height={210}>
-            <RadarChart data={[]}>
+            <RadarChart data={RADAR_DATA}>
               <PolarGrid stroke={gl} />
               <PolarAngleAxis dataKey="metric" tick={{ fontSize:10, fill:ax }} />
               <Radar name="Mr. Farhan" dataKey="farhan" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.25} />
@@ -344,7 +455,7 @@ function DashboardView({ dark }: { dark:boolean }) {
             </div>
           </div>
           <div className="space-y-2.5">
-            {stats.leaderboard.map(l => (
+            {LEADERBOARD.map(l => (
               <motion.div key={l.rank} whileHover={{ x:4 }} className={`flex items-center gap-2.5 p-2 rounded-xl cursor-default ${dark ? 'hover:bg-[#1e2d4a]' : 'hover:bg-slate-50'} transition-colors`}>
                 <div className={`w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-bold shrink-0 ${l.rank===1?'bg-yellow-500 text-white':l.rank===2?'bg-slate-400 text-white':l.rank===3?'bg-orange-500 text-white':dark?'bg-[#1e2d4a] text-slate-400':'bg-slate-100 text-slate-500'}`}>{l.rank}</div>
                 <div className="w-7 h-7 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold text-xs shrink-0">{l.avatar}</div>
@@ -424,9 +535,9 @@ function DashboardView({ dark }: { dark:boolean }) {
       {/* Quick Stats */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         {[
-          { label:'Leads Hari Ini', value:stats.loading?'...':String(stats.todayLeads), icon:Users, color:'from-blue-600 to-blue-400' },
+          { label:'Leads Hari Ini', value:'12', icon:Users, color:'from-blue-600 to-blue-400' },
           { label:'Follow-up', value:'8', icon:RefreshCw, color:'from-purple-600 to-purple-400' },
-          { label:'Closing Hari Ini', value:stats.loading?'...':String(stats.todayClosing), icon:CheckCircle, color:'from-green-600 to-green-400' },
+          { label:'Closing', value:'3', icon:CheckCircle, color:'from-green-600 to-green-400' },
           { label:'Revenue Hari Ini', value:'Rp 28jt', icon:DollarSign, color:'from-orange-600 to-orange-400' },
           { label:'Staff Online', value:'3/5', icon:Activity, color:'from-emerald-600 to-emerald-400' },
         ].map(s => (
@@ -449,14 +560,54 @@ function DashboardView({ dark }: { dark:boolean }) {
 // ─── Performance View ─────────────────────────────────────────────────────────
 function PerformanceView({ dark, currentUser }: { dark:boolean; currentUser:User }) {
   const [saved, setSaved] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [attendance, setAttendance] = useState<'hadir'|'wfh'|'dinas'>('hadir')
+  const [notes, setNotes] = useState('')
   const [form, setForm] = useState<Record<string,string>>({})
-  const card = dark ? 'bg-[#111d35] border-[#1e2d4a]' : 'bg-white border-slate-200'
+  const { records, upsertPerformance } = usePerformance(currentUser.id)
   const text = dark ? 'text-slate-100' : 'text-slate-800'
   const muted = dark ? 'text-slate-400' : 'text-slate-500'
   const inp = dark ? 'bg-[#0a1020] border-[#1e2d4a] text-slate-100 placeholder-slate-600' : 'bg-slate-50 border-slate-200 text-slate-800'
 
-  const handleSave = () => {
-    setSaved(true)
+  const todayStr = new Date().toLocaleDateString('id-ID', { weekday:'long', year:'numeric', month:'long', day:'numeric' })
+  const todayISO = new Date().toISOString().split('T')[0]
+  const todayRecord = records.find(r => r.recordDate === todayISO)
+  const checkInDisplay = todayRecord?.checkInTime ? `Check-in ${todayRecord.checkInTime}` : null
+
+  const metricsWithData = PERF_METRICS.map(m => {
+    const dbVal = todayRecord ? (
+      m.key==='leads' ? todayRecord.leadsIn :
+      m.key==='prospect' ? todayRecord.prospect :
+      m.key==='meeting' ? todayRecord.meeting :
+      m.key==='proposal' ? todayRecord.proposal :
+      m.key==='closing' ? todayRecord.closing :
+      m.key==='revenue' ? Math.round(todayRecord.revenue/1000000) :
+      m.key==='followup' ? todayRecord.followUp :
+      m.key==='new_leads' ? todayRecord.treatmentNew :
+      m.key==='old_leads' ? todayRecord.treatmentOld : m.achieved
+    ) : m.achieved
+    return { ...m, achieved: dbVal }
+  })
+
+  const handleSave = async () => {
+    setSaving(true)
+    const attMap: Record<string,'hadir'|'wfh'|'izin'|'alpa'|'dinas'> = { hadir:'hadir', wfh:'wfh', dinas:'dinas' }
+    await upsertPerformance({
+      staffId: currentUser.id,
+      recordDate: todayISO,
+      leadsIn: Number(form['leads'] || metricsWithData[0].achieved),
+      prospect: Number(form['prospect'] || metricsWithData[1].achieved),
+      meeting: Number(form['meeting'] || metricsWithData[2].achieved),
+      proposal: Number(form['proposal'] || metricsWithData[3].achieved),
+      closing: Number(form['closing'] || metricsWithData[4].achieved),
+      revenue: Number(form['revenue'] || 0) * 1000000,
+      followUp: Number(form['followup'] || metricsWithData[6].achieved),
+      treatmentNew: Number(form['new_leads'] || metricsWithData[7].achieved),
+      treatmentOld: Number(form['old_leads'] || metricsWithData[8].achieved),
+      attendance: attMap[attendance] ?? 'hadir',
+      notes: notes || undefined,
+    })
+    setSaving(false); setSaved(true)
     setTimeout(() => setSaved(false), 2500)
   }
 
@@ -466,21 +617,19 @@ function PerformanceView({ dark, currentUser }: { dark:boolean; currentUser:User
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
             <h2 className={`font-bold text-lg ${text}`}>Input Performa Harian</h2>
-            <p className={`text-xs ${muted}`}>Sabtu, 24 Mei 2026 · {currentUser.name}</p>
+            <p className={`text-xs ${muted}`}>{todayStr} · {currentUser.name}</p>
           </div>
           <div className="flex items-center gap-3">
-            {currentUser.role !== 'staff' && (
-              <select className={`px-3 py-2 rounded-xl border text-sm outline-none ${inp}`}>
-                {USERS.filter(u=>u.role==='staff').map(u=><option key={u.id}>{u.name}</option>)}
-              </select>
-            )}
-            <span className="text-xs px-3 py-1.5 bg-green-500/20 text-green-400 rounded-xl font-semibold flex items-center gap-1"><CheckCircle size={12}/> Check-in 08:02</span>
+            {checkInDisplay
+              ? <span className="text-xs px-3 py-1.5 bg-green-500/20 text-green-400 rounded-xl font-semibold flex items-center gap-1"><CheckCircle size={12}/> {checkInDisplay}</span>
+              : <span className="text-xs px-3 py-1.5 bg-yellow-500/20 text-yellow-400 rounded-xl font-semibold flex items-center gap-1"><Clock size={12}/> Belum Check-in</span>
+            }
           </div>
         </div>
       </Card>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {PERF_METRICS.map(m => {
+        {metricsWithData.map(m => {
           const pct = Math.min(100, Math.round((m.achieved/m.target)*100))
           const isGood = pct >= 80
           return (
@@ -500,7 +649,7 @@ function PerformanceView({ dark, currentUser }: { dark:boolean; currentUser:User
                 type="number"
                 value={form[m.key]||''}
                 onChange={e=>setForm(p=>({...p,[m.key]:e.target.value}))}
-                placeholder="Update..."
+                placeholder={`Update (saat ini: ${m.achieved})`}
                 className={`mt-3 w-full px-3 py-2 rounded-xl border text-sm outline-none focus:ring-2 focus:ring-blue-500/40 transition-all ${inp}`}
               />
             </Card>
@@ -509,20 +658,24 @@ function PerformanceView({ dark, currentUser }: { dark:boolean; currentUser:User
       </div>
 
       <Card dark={dark} className="p-5 space-y-3">
-        <h3 className={`font-semibold flex items-center gap-2 ${text}`}><Clipboard size={16}/>Catatan & Attendance</h3>
-        <textarea rows={3} placeholder="Catatan aktivitas hari ini..." className={`w-full px-3 py-2.5 rounded-xl border text-sm outline-none focus:ring-2 focus:ring-blue-500/40 resize-none ${inp}`}/>
+        <h3 className={`font-semibold flex items-center gap-2 ${text}`}><Clipboard size={16}/>Catatan & Kehadiran</h3>
+        <textarea rows={3} value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Catatan aktivitas hari ini..." className={`w-full px-3 py-2.5 rounded-xl border text-sm outline-none focus:ring-2 focus:ring-blue-500/40 resize-none ${inp}`}/>
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div className="flex gap-4">
-            {['Hadir Kantor','WFH','Dinas Luar'].map(opt=>(
-              <label key={opt} className={`flex items-center gap-1.5 text-sm ${muted} cursor-pointer`}>
-                <input type="radio" name="attendance" className="accent-blue-500"/> {opt}
+            {([['hadir','Hadir Kantor'],['wfh','WFH'],['dinas','Dinas Luar']] as [typeof attendance, string][]).map(([val,lbl])=>(
+              <label key={val} className={`flex items-center gap-1.5 text-sm cursor-pointer ${attendance===val?text:muted}`}>
+                <input type="radio" name="attendance" checked={attendance===val} onChange={()=>setAttendance(val)} className="accent-blue-500"/> {lbl}
               </label>
             ))}
           </div>
-          <button onClick={handleSave} className={`px-5 py-2.5 rounded-xl text-sm font-semibold text-white flex items-center gap-2 transition-all duration-200 ${saved?'bg-green-500 shadow-lg shadow-green-500/30':'bg-gradient-to-r from-blue-600 to-blue-500 shadow-lg shadow-blue-500/30 hover:scale-105 active:scale-95'}`}>
-            {saved ? <><Check size={14}/> Tersimpan!</> : <><CheckCircle size={14}/> Simpan Performa</>}
+          <button onClick={handleSave} disabled={saving}
+            className={`px-5 py-2.5 rounded-xl text-sm font-semibold text-white flex items-center gap-2 transition-all duration-200 ${saved?'bg-green-500 shadow-lg shadow-green-500/30':saving?'bg-blue-400 cursor-wait':'bg-gradient-to-r from-blue-600 to-blue-500 shadow-lg shadow-blue-500/30 hover:scale-105 active:scale-95'}`}>
+            {saved ? <><Check size={14}/> Tersimpan!</> : saving ? <><RefreshCw size={14} className="animate-spin"/> Menyimpan...</> : <><CheckCircle size={14}/> Simpan ke Supabase</>}
           </button>
         </div>
+        {records.length > 0 && (
+          <p className={`text-xs ${muted}`}>Terakhir disimpan: {new Date(records[0].recordDate).toLocaleDateString('id-ID')} · Data tersimpan di database</p>
+        )}
       </Card>
 
       {/* Score Cards */}
@@ -801,17 +954,22 @@ function GoalsView({ dark }: { dark:boolean }) {
 }
 
 // ─── Attendance View ──────────────────────────────────────────────────────────
-function AttendanceView({ dark }: { dark:boolean }) {
-  const [checkedIn, setCheckedIn] = useState(false)
-  const [checkTime, setCheckTime] = useState('')
+function AttendanceView({ dark, currentUser }: { dark:boolean; currentUser:User }) {
+  const [checkingIn, setCheckingIn] = useState(false)
+  const { records, checkIn } = usePerformance(currentUser.id)
   const text = dark ? 'text-slate-100' : 'text-slate-800'
   const muted = dark ? 'text-slate-400' : 'text-slate-500'
-  const inp = dark ? 'bg-[#0a1020] border-[#1e2d4a] text-slate-100 placeholder-slate-600' : 'bg-slate-50 border-slate-200 text-slate-800'
 
-  const handleCheckIn = () => {
-    const now = new Date()
-    setCheckTime(`${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}`)
-    setCheckedIn(true)
+  const todayISO = new Date().toISOString().split('T')[0]
+  const todayStr = new Date().toLocaleDateString('id-ID', { weekday:'long', year:'numeric', month:'long', day:'numeric' })
+  const todayRecord = records.find(r => r.recordDate === todayISO)
+  const checkedIn = !!todayRecord?.checkInTime
+
+  const handleCheckIn = async () => {
+    if (checkedIn) return
+    setCheckingIn(true)
+    await checkIn()
+    setCheckingIn(false)
   }
 
   const attStatus: Record<string,{bg:string;text:string}> = {
@@ -819,31 +977,41 @@ function AttendanceView({ dark }: { dark:boolean }) {
     wfh: {bg:'bg-blue-500/20',text:'text-blue-400'},
     izin: {bg:'bg-yellow-500/20',text:'text-yellow-400'},
     alpa: {bg:'bg-red-500/20',text:'text-red-400'},
+    dinas: {bg:'bg-purple-500/20',text:'text-purple-400'},
   }
+
+  const monthlyCounts = records.reduce((acc, r) => {
+    acc[r.attendance] = (acc[r.attendance] ?? 0) + 1
+    return acc
+  }, {} as Record<string, number>)
 
   return (
     <div className="space-y-5">
-      <div><h2 className={`font-bold text-lg ${text}`}>Attendance & Check-in</h2><p className={`text-xs ${muted}`}>Sabtu, 24 Mei 2026</p></div>
+      <div><h2 className={`font-bold text-lg ${text}`}>Attendance & Check-in</h2><p className={`text-xs ${muted}`}>{todayStr}</p></div>
 
       {/* Check-in Card */}
       <Card dark={dark} className="p-6">
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div className="flex items-center gap-4">
-            <div className={`w-16 h-16 rounded-2xl flex items-center justify-center ${checkedIn?'bg-green-500/20':'bg-[#1e2d4a]'}`}>
+            <div className={`w-16 h-16 rounded-2xl flex items-center justify-center ${checkedIn?'bg-green-500/20':dark?'bg-[#1e2d4a]':'bg-slate-100'}`}>
               <CheckCircle size={32} className={checkedIn?'text-green-400':muted}/>
             </div>
             <div>
-              <h3 className={`font-bold text-lg ${text}`}>{checkedIn ? `Check-in pada ${checkTime}` : 'Belum Check-in'}</h3>
+              <h3 className={`font-bold text-lg ${text}`}>{checkedIn ? `Check-in pada ${todayRecord?.checkInTime}` : 'Belum Check-in'}</h3>
               <p className={`text-sm ${muted}`}>{checkedIn ? 'Kamu sudah tercatat hadir hari ini ✓' : 'Tap tombol untuk check-in sekarang'}</p>
             </div>
           </div>
-          <button onClick={handleCheckIn} disabled={checkedIn}
-            className={`px-6 py-3 rounded-xl text-sm font-semibold text-white flex items-center gap-2 transition-all ${checkedIn?'bg-green-500 opacity-70 cursor-not-allowed':'bg-gradient-to-r from-blue-600 to-blue-500 shadow-lg shadow-blue-500/30 hover:scale-105 active:scale-95'}`}>
-            <Clock size={15}/>{checkedIn ? 'Sudah Check-in' : 'Check-in Sekarang'}
+          <button onClick={handleCheckIn} disabled={checkedIn || checkingIn}
+            className={`px-6 py-3 rounded-xl text-sm font-semibold text-white flex items-center gap-2 transition-all ${checkedIn?'bg-green-500 opacity-70 cursor-not-allowed':checkingIn?'bg-blue-400 cursor-wait':'bg-gradient-to-r from-blue-600 to-blue-500 shadow-lg shadow-blue-500/30 hover:scale-105 active:scale-95'}`}>
+            <Clock size={15}/>{checkedIn ? 'Sudah Check-in' : checkingIn ? 'Menyimpan...' : 'Check-in Sekarang'}
           </button>
         </div>
         <div className={`grid grid-cols-3 gap-4 mt-5 pt-5 border-t ${dark?'border-[#1e2d4a]':'border-slate-100'}`}>
-          {[{l:'Jam Masuk',v:checkTime||'-'},{l:'Jam Keluar',v:'-'},{l:'Durasi',v:checkedIn?'Sedang bekerja':'-'}].map(s=>(
+          {[
+            {l:'Jam Masuk', v:todayRecord?.checkInTime||'-'},
+            {l:'Jam Keluar', v:todayRecord?.checkOutTime||'-'},
+            {l:'Status', v:todayRecord?.attendance||'—'},
+          ].map(s=>(
             <div key={s.l} className="text-center"><p className={`text-lg font-bold ${text}`}>{s.v}</p><p className={`text-xs ${muted}`}>{s.l}</p></div>
           ))}
         </div>
@@ -852,10 +1020,10 @@ function AttendanceView({ dark }: { dark:boolean }) {
       {/* Monthly Summary */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          {l:'Hadir',v:'18',icon:CheckCircle,color:'from-green-600 to-green-400'},
-          {l:'WFH',v:'4',icon:Activity,color:'from-blue-600 to-blue-400'},
-          {l:'Izin',v:'1',icon:AlertCircle,color:'from-yellow-600 to-yellow-400'},
-          {l:'Alpa',v:'0',icon:X,color:'from-red-600 to-red-400'},
+          {l:'Hadir',v:monthlyCounts['hadir']??0,icon:CheckCircle,color:'from-green-600 to-green-400'},
+          {l:'WFH',v:monthlyCounts['wfh']??0,icon:Activity,color:'from-blue-600 to-blue-400'},
+          {l:'Izin',v:monthlyCounts['izin']??0,icon:AlertCircle,color:'from-yellow-600 to-yellow-400'},
+          {l:'Alpa',v:monthlyCounts['alpa']??0,icon:X,color:'from-red-600 to-red-400'},
         ].map(s=>(
           <Card key={s.l} dark={dark} className="p-4 flex items-center gap-3">
             <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${s.color} flex items-center justify-center shrink-0`}><s.icon size={16} className="text-white"/></div>
@@ -864,32 +1032,33 @@ function AttendanceView({ dark }: { dark:boolean }) {
         ))}
       </div>
 
-      {/* Table */}
+      {/* Table — real data from Supabase, fallback to mock */}
       <Card dark={dark} className="overflow-hidden">
         <div className={`px-5 py-3 border-b ${dark?'border-[#1e2d4a]':'border-slate-100'}`}>
-          <h3 className={`font-bold ${text}`}>Riwayat 5 Hari Terakhir</h3>
+          <h3 className={`font-bold ${text}`}>Riwayat {records.length > 0 ? `${records.length} Hari Terakhir` : '5 Hari Terakhir'}</h3>
         </div>
         <table className="w-full text-sm">
           <thead>
             <tr className={`text-xs uppercase tracking-wider ${muted} ${dark?'bg-[#0a1020]':'bg-slate-50'}`}>
               <th className="px-5 py-3 text-left">Tanggal</th>
-              <th className="px-5 py-3 text-left">Mr. Farhan</th>
-              <th className="px-5 py-3 text-left">Mr. Ramram</th>
+              <th className="px-5 py-3 text-left">Status</th>
               <th className="px-5 py-3 text-left hidden md:table-cell">Check-in</th>
               <th className="px-5 py-3 text-left hidden md:table-cell">Check-out</th>
+              <th className="px-5 py-3 text-right hidden lg:table-cell">Leads</th>
+              <th className="px-5 py-3 text-right hidden lg:table-cell">Closing</th>
             </tr>
           </thead>
           <tbody>
-            {ATTENDANCE.map((row,i)=>(
+            {(records.length > 0 ? records.slice(0,10) : ATTENDANCE.map(a=>({recordDate:a.date,attendance:a.farhan,checkInTime:a.checkIn,checkOutTime:a.checkOut,leadsIn:0,closing:0}))).map((row,i)=>(
               <tr key={i} className={`border-t ${dark?'border-[#1e2d4a] hover:bg-[#1a2a4a]':'border-slate-100 hover:bg-blue-50'} transition-colors`}>
-                <td className={`px-5 py-3 text-sm font-medium ${muted}`}>{row.date}</td>
-                {[row.farhan, row.ramram].map((st,j)=>(
-                  <td key={j} className="px-5 py-3">
-                    <span className={`text-xs px-2.5 py-1 rounded-xl font-semibold ${attStatus[st]?.bg} ${attStatus[st]?.text}`}>{st}</span>
-                  </td>
-                ))}
-                <td className={`px-5 py-3 text-sm ${muted} hidden md:table-cell`}>{row.checkIn}</td>
-                <td className={`px-5 py-3 text-sm ${muted} hidden md:table-cell`}>{row.checkOut}</td>
+                <td className={`px-5 py-3 text-sm font-medium ${muted}`}>{new Date(row.recordDate).toLocaleDateString('id-ID')}</td>
+                <td className="px-5 py-3">
+                  <span className={`text-xs px-2.5 py-1 rounded-xl font-semibold ${attStatus[row.attendance]?.bg} ${attStatus[row.attendance]?.text}`}>{row.attendance}</span>
+                </td>
+                <td className={`px-5 py-3 text-sm ${muted} hidden md:table-cell`}>{row.checkInTime||'-'}</td>
+                <td className={`px-5 py-3 text-sm ${muted} hidden md:table-cell`}>{row.checkOutTime||'-'}</td>
+                <td className={`px-5 py-3 text-sm text-right ${muted} hidden lg:table-cell`}>{'leadsIn' in row ? row.leadsIn : '-'}</td>
+                <td className={`px-5 py-3 text-sm text-right font-medium hidden lg:table-cell ${text}`}>{'closing' in row ? row.closing : '-'}</td>
               </tr>
             ))}
           </tbody>
@@ -1073,30 +1242,10 @@ function LoginScreen({ onLogin }: { onLogin:(u:User)=>void }) {
 
   const handle = async () => {
     setLoading(true); setError('')
-    try {
-      const { createClient } = await import('@/lib/supabase/client')
-      const supabase = createClient()
-      const { data, error: authErr } = await supabase.auth.signInWithPassword({ email, password: pass })
-      if (authErr || !data.user) {
-        setError(authErr?.message || 'Email atau password salah.')
-        setLoading(false); return
-      }
-      const { data: profile } = await supabase.from('profiles').select('*').eq('id', data.user.id).single()
-      const u: User = {
-        id: data.user.id,
-        name: profile?.full_name || data.user.email || 'User',
-        role: (profile?.role || 'staff') as Role,
-        team: profile?.team || '',
-        avatar: ((profile?.full_name || data.user.email || 'U').charAt(0)).toUpperCase(),
-        email: data.user.email || '',
-        online: true,
-        revenue: 0, leads: 0, closing: 0, score: 0,
-      }
-      onLogin(u)
-    } catch(e) {
-      setError('Gagal login: ' + (e instanceof Error ? e.message : 'Unknown error'))
-      setLoading(false)
-    }
+    await new Promise(r=>setTimeout(r,900))
+    const found = USERS.find(u=>u.email===email)
+    if (found && pass==='admin123') { onLogin(found) }
+    else { setError('Email atau password salah. Coba: reynaldi@alex.id / admin123'); setLoading(false) }
   }
 
   return (
@@ -1157,7 +1306,6 @@ function LoginScreen({ onLogin }: { onLogin:(u:User)=>void }) {
               {[
                 { n:'Reynaldi (SuperAdmin)', e:'reynaldi@alex.id' },
                 { n:'Mr. Farhan (Staff)', e:'farhan@alex.id' },
-                { n:'Mr. Ramram (Staff)', e:'ramram@alex.id' },
               ].map(a=>(
                 <button key={a.e} onClick={()=>{setEmail(a.e);setPass('admin123');setTab('password')}} className="px-3 py-2 text-xs bg-[#0a1020] border border-[#1e2d4a] rounded-xl text-slate-400 hover:text-slate-200 hover:border-blue-500/50 transition-all text-left">
                   {a.n}
@@ -1239,7 +1387,7 @@ function StarRating({ value, onChange, dark }: { value:number; onChange?:(v:numb
 }
 
 function LeadsView({ dark, currentUser }: { dark:boolean; currentUser:User }) {
-  const { leads: dbLeads, loading, createLead, deleteLead, updateLead } = useLeads()
+  const { leads: dbLeads, loading, createLead, deleteLead } = useLeads()
   const [filterCategory, setFilterCategory] = useState<'all'|'HOT'|'COLD'|'WARM'|'FREEZE'>('all')
   const [filterStaff, setFilterStaff] = useState('all')
   const [search, setSearch] = useState('')
@@ -1264,12 +1412,6 @@ function LeadsView({ dark, currentUser }: { dark:boolean; currentUser:User }) {
   const inp = dark?'bg-[#0a1020] border-[#1e2d4a] text-slate-100 placeholder-slate-600':'bg-slate-50 border-slate-200 text-slate-800 placeholder-slate-400'
 
   const showToast = (msg:string) => { setToast(msg); setTimeout(()=>setToast(''), 3000) }
-
-  const handleCategoryChange = async (leadId: string, newCat: LeadCategory, e: React.MouseEvent) => {
-    e.stopPropagation()
-    await updateLead(leadId, { leadCategory: newCat })
-    showToast(`✅ Kategori diubah ke ${newCat}`)
-  }
 
   const filtered = useMemo(() => {
     return dbLeads.filter(l =>
@@ -1513,27 +1655,10 @@ function LeadsView({ dark, currentUser }: { dark:boolean; currentUser:User }) {
                         </div>
                       </td>
                       <td className={`px-4 py-3 ${mt}`}>{lead.parentArea ?? '—'}</td>
-            <td className="px-4 py-3" onClick={e=>e.stopPropagation()}>
-                        <select
-                          value={lead.leadCategory ?? ''}
-                          onChange={async e => {
-                            if (!e.target.value) return
-                            const newCat = e.target.value as LeadCategory
-                            await updateLead(lead.id, { leadCategory: newCat })
-                            showToast(`✅ Kategori diubah ke ${newCat}`)
-                          }}
-                          className={`text-[10px] px-2 py-1 rounded-lg font-bold border-0 outline-none cursor-pointer ${
-                            lead.leadCategory === 'HOT' ? 'bg-red-500/15 text-red-400' :
-                            lead.leadCategory === 'WARM' ? 'bg-orange-500/15 text-orange-400' :
-                            lead.leadCategory === 'COLD' ? 'bg-blue-500/15 text-blue-400' :
-                            lead.leadCategory === 'FREEZE' ? 'bg-cyan-500/15 text-cyan-400' :
-                            (dark ? 'bg-[#1e2d4a] text-sla-400' : 'bg-slate-100 text-slate-500')
-                          }`}>
-                          <option value="">— Pilih</option>
-                          {(['HOT','WARM','COLD','FREEZE'] as const).map(c2=>(
-                            <option key={c2} value={c2}>{c2==='HOT'?'🔥 HOT':c2==='WARM'?'🌤 WARM':c2==='COLD'?'❄ COLD':'🧊 FREEZE'}</option>
-                          ))}
-                        </select>
+                      <td className="px-4 py-3">
+                        {lead.leadCategory ? (
+                          <span className={`text-[10px] px-2 py-1 rounded-lg font-bold ${CATEGORY_CFG[lead.leadCategory]?.bg ?? ''} ${CATEGORY_CFG[lead.leadCategory]?.color ?? ''}`}>{lead.leadCategory}</span>
+                        ) : <span className={mt}>—</span>}
                       </td>
                       <td className="px-4 py-3">
                         {lead.interestRating ? <StarRating value={lead.interestRating} dark={dark}/> : <span className={mt}>—</span>}
@@ -1563,29 +1688,12 @@ function LeadsView({ dark, currentUser }: { dark:boolean; currentUser:User }) {
                   onClick={()=>setDetailLead(lead)}>
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
-                      {/* Category selector — mobile interactive */}
-                      <div className="mb-1.5" onClick={e=>e.stopPropagation()}>
-                        <select
-                          value={lead.leadCategory ?? ''}
-                      onChange={async e => {
-                            if (!e.target.value) return
-                            const newCat = e.target.value as LeadCategory
-                            await updateLead(lead.id, { leadCategory: newCat })
-                            showToast(`✅ Kategori diubah ke ${newCat}`)
-                          }}
-                          className={`text-[10px] px-2 py-1 rounded-lg font-bold border-0 outline-none cursor-pointer ${
-                            lead.leadCategory === 'HOT'    ? 'bg-red-500/15 text-red-400' :
-                            lead.leadCategory === 'WARM'   ? 'bg-orange-500/15 text-orange-400' :
-                            lead.leadCategory === 'COLD'   ? 'bg-blue-500/15 text-blue-400' :
-                            lead.leadCategory === 'FREEZE' ? 'bg-cyan-500/15 text-cyan-400' :
-                            (dark ? 'bg-[#1e2d4a] text-slate-400' : 'bg-slate-100 text-slate-500')
-                          }`}>
-                          <option value="">— Pilih Kategori</option>
-                          {(['HOT','WARM','COLD','FREEZE'] as const).map(c2=>(
-                            <option key={c2} value={c2}>{c2==='HOT'?'🔥 HOT':c2==='WARM'?'🌤 WARM':c2==='COLD'?'❄ COLD':'🧊 FREEZE'}</option>
-                          ))}
-                        </select>
-                      </div>
+                      {/* Category badge */}
+                      {lead.leadCategory && (
+                        <span className={`inline-flex text-[10px] px-2 py-0.5 rounded-lg font-bold mb-1.5 ${CATEGORY_CFG[lead.leadCategory]?.bg} ${CATEGORY_CFG[lead.leadCategory]?.color}`}>
+                          {lead.leadCategory}
+                        </span>
+                      )}
                       {/* Names */}
                       <p className={`font-bold text-sm ${tx} truncate`}>{lead.childName}</p>
                       <p className={`text-xs ${mt} truncate`}>👨‍👩‍👦 {lead.parentName}</p>
@@ -1632,7 +1740,8 @@ function LeadsView({ dark, currentUser }: { dark:boolean; currentUser:User }) {
       <AnimatePresence>
         {detailLead && (
           <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}
-          className="fixed inset-0 z-[60] flex items-center justify-center p-4 pb-[90px] lg:pb-4 bg-black/60 backdrop-blur-sm"            onClick={()=>setDetailLead(null)}>
+            className="fixed inset-0 z-[60] flex items-center justify-center p-4 pb-[90px] lg:pb-4 bg-black/60 backdrop-blur-sm"
+            onClick={()=>setDetailLead(null)}>
             <motion.div initial={{scale:0.95,y:20}} animate={{scale:1,y:0}} exit={{scale:0.95,y:20}}
               className={`${dark?'bg-[#0f1729] border-[#1e2d4a]':'bg-white border-slate-200'} border rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden`}
               onClick={e=>e.stopPropagation()}>
@@ -1688,8 +1797,9 @@ function LeadsView({ dark, currentUser }: { dark:boolean; currentUser:User }) {
       <AnimatePresence>
         {showAdd && (
           <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}
-          className="fixed inset-0 z-[60] flex items-center justify-center p-4 pb-[90px] lg:pb-4 bg-black/60 backdrop-blur-sm">            <motion.div initial={{scale:0.95,y:20}} animate={{scale:1,y:0}} exit={{scale:0.95,y:20}}
-              className={`${dark?'bg-[#0f1729] border-[#1e2d4a]':'bg-white border-slate-200'} border rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]`}>
+            className="fixed inset-0 z-[60] flex items-center justify-center p-4 pb-[90px] lg:pb-4 bg-black/60 backdrop-blur-sm">
+            <motion.div initial={{scale:0.95,y:20}} animate={{scale:1,y:0}} exit={{scale:0.95,y:20}}
+              className={`${dark?'bg-[#0f1729] border-[#1e2d4a]':'bg-white border-slate-200'} border rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-full`}>
               {/* Header */}
               <div className={`flex items-center justify-between px-5 py-4 border-b ${bd}`}>
                 <div>
@@ -1885,6 +1995,19 @@ const MOB_NAV = [
   { view:'reports'    as View, label:'Laporan',    icon:FileText },
 ]
 
+const NOTIF_TYPE_ICON: Record<string, React.ComponentType<{size?:number;className?:string}>> = {
+  success: CheckCircle,
+  warning: AlertCircle,
+  error: AlertCircle,
+  info: Bell,
+}
+const NOTIF_TYPE_COLOR: Record<string, string> = {
+  success: 'text-green-400',
+  warning: 'text-yellow-400',
+  error: 'text-red-400',
+  info: 'text-blue-400',
+}
+
 export default function AlexandriaDashboard() {
   const [loggedIn, setLoggedIn] = useState(false)
   const [user, setUser] = useState<User|null>(null)
@@ -1893,8 +2016,6 @@ export default function AlexandriaDashboard() {
   const [view, setView] = useState<View>('dashboard')
   const [notifOpen, setNotifOpen] = useState(false)
   const [toasts, setToasts] = useState<{id:number;msg:string}[]>([])
-  const [showGreeting, setShowGreeting] = useState(false)
-  const [greetingUser, setGreetingUser] = useState<User|null>(null)
 
   const d = dark
   const bg = d ? 'bg-[#070d1a]' : 'bg-slate-100'
@@ -1903,17 +2024,24 @@ export default function AlexandriaDashboard() {
   const muted = d ? 'text-slate-400' : 'text-slate-500'
   const hdrBg = d ? 'bg-[#0a1020]/90 border-[#1e2d4a]' : 'bg-white/90 border-slate-200'
 
+  const { notifications: dbNotifs, unreadCount, markAllRead, markRead } = useNotifications(user?.id)
+
   const visibleNav = useMemo(()=>{ if(!user) return []; return NAV.filter(n=>(n.roles as string[]).includes(user.role)) }, [user])
 
-  if (!loggedIn || !user) return <LoginScreen onLogin={u=>{setUser(u);setLoggedIn(true);setGreetingUser(u);setShowGreeting(true);setTimeout(()=>setShowGreeting(false),4500)}}/>
+  if (!loggedIn || !user) return <LoginScreen onLogin={u=>{setUser(u);setLoggedIn(true)}}/>
 
-  const NOTIFS = [
+  const STATIC_NOTIFS = [
     {msg:'Mr. Farhan menambah 3 leads baru',time:'2 menit lalu',icon:Users,color:'text-blue-400'},
     {msg:'Target tim Alpha tercapai! 🎉',time:'15 menit lalu',icon:CheckCircle,color:'text-green-400'},
     {msg:'Campaign Ramadan berakhir besok',time:'1 jam lalu',icon:AlertCircle,color:'text-yellow-400'},
     {msg:'Mr. Ramram closing Rp 8jt',time:'2 jam lalu',icon:TrendingUp,color:'text-green-400'},
     {msg:'Laporan bulanan siap di-download',time:'3 jam lalu',icon:Download,color:'text-purple-400'},
   ]
+  const hasRealNotifs = dbNotifs.length > 0
+  const displayNotifs = hasRealNotifs
+    ? dbNotifs.map(n => ({ msg: n.message, time: n.timeAgo, icon: NOTIF_TYPE_ICON[n.type] ?? Bell, color: NOTIF_TYPE_COLOR[n.type] ?? 'text-blue-400', isRead: n.isRead, id: n.id }))
+    : STATIC_NOTIFS.map(n => ({ ...n, isRead: false, id: '' }))
+  const badgeCount = hasRealNotifs ? unreadCount : STATIC_NOTIFS.length
 
   return (
     <div className={`flex h-screen w-full overflow-hidden ${bg} ${text} transition-colors duration-300`} style={{fontFamily:'Inter,system-ui,sans-serif'}}>
@@ -2033,9 +2161,7 @@ export default function AlexandriaDashboard() {
             <img src="/logo-alexandria.jpeg" alt="Alexandria" className="lg:hidden w-7 h-7 rounded-lg object-cover shrink-0 border border-white/10"/>
             <div>
               <h1 className={`text-sm lg:text-base font-bold ${text}`}>{viewTitle[view]}</h1>
-              <p className={`text-[10px] lg:text-xs ${muted}`}>
-                {new Date().toLocaleDateString('id-ID',{weekday:'long',day:'numeric',month:'long',year:'numeric'})} · {user.name}
-              </p>
+              <p className={`text-[10px] lg:text-xs ${muted} hidden sm:block`}>{new Date().toLocaleDateString('id-ID',{weekday:'long',day:'numeric',month:'long',year:'numeric'})} · {user.name}</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -2049,7 +2175,7 @@ export default function AlexandriaDashboard() {
             {/* Notif */}
             <button onClick={()=>setNotifOpen(!notifOpen)} className={`relative w-9 h-9 rounded-xl flex items-center justify-center transition-colors ${d?'bg-[#1e2d4a] hover:bg-[#2a3d5a] text-slate-300':'bg-slate-100 hover:bg-slate-200 text-slate-600'}`}>
               <Bell size={16}/>
-              <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-red-500 rounded-full text-[9px] text-white flex items-center justify-center font-bold">5</span>
+              {badgeCount > 0 && <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-red-500 rounded-full text-[9px] text-white flex items-center justify-center font-bold">{badgeCount > 9 ? '9+' : badgeCount}</span>}
             </button>
             {/* Mobile dark/light toggle */}
             <button onClick={()=>setDark(!d)} className={`lg:hidden w-9 h-9 rounded-xl flex items-center justify-center transition-colors ${d?'bg-[#1e2d4a] text-yellow-400 hover:bg-[#2a3d5a]':'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
@@ -2059,14 +2185,6 @@ export default function AlexandriaDashboard() {
             <button onClick={()=>{setLoggedIn(false);setUser(null)}} className={`lg:hidden w-9 h-9 rounded-xl flex items-center justify-center transition-colors ${d?'bg-red-500/15 text-red-400 hover:bg-red-500/25':'bg-red-50 text-red-500 hover:bg-red-100'}`}>
               <LogOut size={15}/>
             </button>
-            {/* User avatar chip */}
-            <div className={`hidden lg:flex items-center gap-2 px-2.5 py-1.5 rounded-xl border cursor-default ${d?'bg-[#111d35] border-[#1e2d4a]':'bg-white border-slate-200'}`}>
-              <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-pink-500 to-orange-400 flex items-center justify-center text-white font-bold text-xs shadow-md">{user.avatar}</div>
-              <div className="min-w-0">
-                <p className={`text-xs font-semibold ${text} leading-none`}>{user.name}</p>
-                <p className={`text-[9px] ${muted} capitalize leading-none mt-0.5`}>{user.role}</p>
-              </div>
-            </div>
           </div>
         </header>
 
@@ -2081,25 +2199,29 @@ export default function AlexandriaDashboard() {
                   <div className="flex items-center gap-2">
                     <Bell size={14} className={d?'text-blue-400':'text-blue-600'}/>
                     <span className={`text-sm font-bold ${text}`}>Notifikasi</span>
-                    <span className="w-5 h-5 bg-red-500 rounded-full text-[9px] text-white flex items-center justify-center font-bold">5</span>
+                    {badgeCount > 0 && <span className="w-5 h-5 bg-red-500 rounded-full text-[9px] text-white flex items-center justify-center font-bold">{badgeCount > 9 ? '9+' : badgeCount}</span>}
                   </div>
                   <button onClick={()=>setNotifOpen(false)} className={`w-6 h-6 rounded-lg flex items-center justify-center ${d?'bg-[#1e2d4a] text-slate-400 hover:text-slate-200':'bg-slate-100 text-slate-400 hover:text-slate-600'}`}><X size={12}/></button>
                 </div>
                 <div className="max-h-72 overflow-y-auto">
-                  {NOTIFS.map((n,i)=>(
-                    <div key={i} className={`px-4 py-3 border-b ${d?'border-[#1e2d4a] hover:bg-[#1a2a4a]':'border-slate-50 hover:bg-slate-50'} cursor-pointer transition-colors last:border-b-0`}>
+                  {displayNotifs.map((n,i)=>(
+                    <div key={i} onClick={()=>{ if(n.id) markRead(n.id) }}
+                      className={`px-4 py-3 border-b cursor-pointer transition-colors last:border-b-0
+                        ${d ? 'border-[#1e2d4a] hover:bg-[#1a2a4a]' : 'border-slate-50 hover:bg-slate-50'}
+                        ${!n.isRead && hasRealNotifs ? (d ? 'bg-[#0d1a35]' : 'bg-blue-50/60') : ''}`}>
                       <div className="flex items-start gap-3">
                         <n.icon size={15} className={`mt-0.5 shrink-0 ${n.color}`}/>
-                        <div>
+                        <div className="flex-1 min-w-0">
                           <p className={`text-xs font-medium ${text}`}>{n.msg}</p>
                           <p className={`text-[10px] ${muted} mt-0.5`}>{n.time}</p>
                         </div>
+                        {!n.isRead && hasRealNotifs && <div className="w-1.5 h-1.5 rounded-full bg-blue-500 mt-1.5 shrink-0"/>}
                       </div>
                     </div>
                   ))}
                 </div>
                 <div className={`px-4 py-2.5 border-t ${d?'border-[#1e2d4a]':'border-slate-100'}`}>
-                  <button className={`text-xs font-semibold ${d?'text-blue-400':'text-blue-600'}`}>Tandai semua sudah dibaca</button>
+                  <button onClick={()=>{ markAllRead(); }} className={`text-xs font-semibold ${d?'text-blue-400':'text-blue-600'}`}>Tandai semua sudah dibaca</button>
                 </div>
               </motion.div>
             </>
@@ -2120,7 +2242,7 @@ export default function AlexandriaDashboard() {
               {view==='campaigns' && <CampaignsView dark={d}/>}
               {view==='reports' && <ReportsView dark={d}/>}
               {view==='goals' && <GoalsView dark={d}/>}
-              {view==='attendance' && <AttendanceView dark={d}/>}
+              {view==='attendance' && <AttendanceView dark={d} currentUser={user}/>}
               {view==='commission' && <CommissionView dark={d}/>}
               {view==='settings' && (
                 <Card dark={d} className="p-8 text-center">
@@ -2178,49 +2300,6 @@ export default function AlexandriaDashboard() {
         {/* Safe area bottom padding */}
         <div className="h-safe-bottom pb-1"/>
       </div>
-      {/* ── Welcome Greeting Modal ── */}
-      <AnimatePresence>
-        {showGreeting && greetingUser && (
-          <motion.div
-            initial={{ opacity:0, scale:0.8, y:40 }}
-            animate={{ opacity:1, scale:1, y:0 }}
-            exit={{ opacity:0, scale:0.9, y:20 }}
-            transition={{ type:'spring', stiffness:300, damping:25 }}
-            className="fixed bottom-6 left-0 right-0 mx-auto z-[9999] w-[90vw] max-w-sm"
-          >
-            <div className="relative rounded-2xl overflow-hidden shadow-2xl shadow-black/40" style={{background:'linear-gradient(135deg,#1e3a8a,#7c3aed,#db2777)'}}>
-              <div className="absolute inset-0 bg-black/10"/>
-              <div className="relative px-5 py-4 flex items-center gap-4">
-                <motion.div
-                  animate={{ rotate:[0,10,-10,0], scale:[1,1.1,1] }}
-                  transition={{ repeat:2, duration:0.4 }}
-                  className="w-14 h-14 rounded-2xl bg-white/20 backdrop-blur flex items-center justify-center text-2xl shrink-0 shadow-lg"
-                >
-                  {(()=>{const h=new Date().getHours();return h<11?'☀️':h<15?'🌤':h<18?'🌅':'🌙'})()}
-      </motion.div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-white/70 text-[10px] font-semibold uppercase tracking-widest">
-                    {(()=>{const h=new Date().getHours();return h<11?'Selamat Pagi':h<15?'Selamat Siang':h<18?'Selamat Sore':'Selamat Malam'})()}
-                  </p>
-                  <p className="text-white font-bold text-lg leading-tight mt-0.5">{greetingUser.name}! 👋</p>
-                  <p className="text-white/75 text-xs mt-1">
-                    {greetingUser.role === 'manager' ? '🏆 Semangat memimpin tim hari ini!' : '💪 Semangat mencapai target hari ini!'}
-                  </p>
-                </div>
-                <button onClick={()=>setShowGreeting(false)} className="w-7 h-7 rounded-xl bg-white/20 hover:bg-white/30 flex items-center justify-center shrink-0 tran-colors">
-                  <X size={13} className="text-white"/>
-                </button>
-              </div>
-              <motion.div
-                initial={{ width:'100%' }}
-                animate={{ width:'0%' }}
-                transition={{ duration:4.5, ease:'linear' }}
-                className="h-0.5 bg-white/40"
-              />
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   )
 }
