@@ -1387,7 +1387,7 @@ function StarRating({ value, onChange, dark }: { value:number; onChange?:(v:numb
 }
 
 function LeadsView({ dark, currentUser }: { dark:boolean; currentUser:User }) {
-  const { leads: dbLeads, loading, createLead, deleteLead } = useLeads()
+  const { leads: dbLeads, loading, createLead, updateLead, deleteLead } = useLeads()
   const [filterCategory, setFilterCategory] = useState<'all'|'HOT'|'COLD'|'WARM'|'FREEZE'>('all')
   const [filterStaff, setFilterStaff] = useState('all')
   const [search, setSearch] = useState('')
@@ -1561,7 +1561,12 @@ function LeadsView({ dark, currentUser }: { dark:boolean; currentUser:User }) {
                     {colLeads.length === 0 && (
                       <div className={`flex items-center justify-center h-20 rounded-xl border-2 border-dashed ${dark?'border-[#1e2d4a] text-slate-600':'border-slate-200 text-slate-400'} text-xs`}>Kosong</div>
                     )}
-                    {colLeads.map((lead,i)=>(
+                    {colLeads.map((lead,i)=>{
+                      const ORDER: LeadCategory[] = ['HOT','WARM','COLD','FREEZE']
+                      const idx = ORDER.indexOf(cat)
+                      const prevCat = idx > 0 ? ORDER[idx-1] : null
+                      const nextCat = idx < ORDER.length-1 ? ORDER[idx+1] : null
+                      return (
                       <motion.div key={lead.id} initial={{opacity:0,y:6}} animate={{opacity:1,y:0}} transition={{delay:i*0.04}}
                         onClick={()=>setDetailLead(lead)}
                         className={`${cb} border rounded-xl p-3 cursor-pointer transition-all hover:scale-[1.01] hover:shadow-lg`}>
@@ -1569,9 +1574,26 @@ function LeadsView({ dark, currentUser }: { dark:boolean; currentUser:User }) {
                         <p className={`text-[10px] ${mt} truncate mt-0.5`}>👨‍👩‍👦 {lead.parentName}</p>
                         {lead.parentPhone && <p className={`text-[10px] ${mt} truncate`}>📱 {lead.parentPhone}</p>}
                         {lead.parentArea && <p className={`text-[10px] ${mt} truncate`}>📍 {lead.parentArea}</p>}
-                        <div className="flex items-center justify-between mt-2 gap-2">
-                          {lead.interestRating ? <StarRating value={lead.interestRating} dark={dark}/> : <span/>}
-                          <div className="flex gap-1" onClick={e=>e.stopPropagation()}>
+                        {lead.interestRating ? <div className="mt-1.5"><StarRating value={lead.interestRating} dark={dark}/></div> : null}
+                        {/* Quick move row */}
+                        <div className="flex items-center justify-between mt-2 gap-1" onClick={e=>e.stopPropagation()}>
+                          <div className="flex gap-1">
+                            {prevCat && (
+                              <button title={`Pindah ke ${prevCat}`}
+                                onClick={async()=>{await updateLead(lead.id,{leadCategory:prevCat});showToast(`↑ Dipindah ke ${prevCat}`)}}
+                                className={`flex items-center gap-0.5 px-1.5 py-1 rounded-lg text-[9px] font-bold border transition-colors ${CATEGORY_CFG[prevCat].bg} ${CATEGORY_CFG[prevCat].color}`}>
+                                ↑ {prevCat}
+                              </button>
+                            )}
+                            {nextCat && (
+                              <button title={`Pindah ke ${nextCat}`}
+                                onClick={async()=>{await updateLead(lead.id,{leadCategory:nextCat});showToast(`↓ Dipindah ke ${nextCat}`)}}
+                                className={`flex items-center gap-0.5 px-1.5 py-1 rounded-lg text-[9px] font-bold border transition-colors ${CATEGORY_CFG[nextCat].bg} ${CATEGORY_CFG[nextCat].color}`}>
+                                ↓ {nextCat}
+                              </button>
+                            )}
+                          </div>
+                          <div className="flex gap-1">
                             <button onClick={()=>handleCopyIndividual(lead)} className={`w-6 h-6 rounded-lg flex items-center justify-center ${dark?'text-green-400 hover:bg-green-500/10':'text-green-600 hover:bg-green-50'}`}><MessageSquare size={11}/></button>
                             <button onClick={async()=>{await deleteLead(lead.id);showToast('🗑 Lead dihapus')}} className={`w-6 h-6 rounded-lg flex items-center justify-center ${dark?'text-red-400 hover:bg-red-500/10':'text-red-600 hover:bg-red-50'}`}><Trash2 size={11}/></button>
                           </div>
@@ -1579,7 +1601,8 @@ function LeadsView({ dark, currentUser }: { dark:boolean; currentUser:User }) {
                         {lead.assignedStaffName && <p className={`text-[9px] ${mt} mt-1.5 font-medium`}>👤 {lead.assignedStaffName}</p>}
                         {lead.source && <span className={`inline-block text-[9px] px-1.5 py-0.5 rounded-md font-medium mt-1 ${dark?'bg-[#1e2d4a] text-slate-400':'bg-slate-100 text-slate-500'}`}>{lead.source}</span>}
                       </motion.div>
-                    ))}
+                      )
+                    })}
                   </div>
                 </div>
               )
@@ -1760,10 +1783,36 @@ function LeadsView({ dark, currentUser }: { dark:boolean; currentUser:User }) {
                   </button>
                 </div>
               </div>
-              <div className="p-5 space-y-4 max-h-96 overflow-y-auto">
+              <div className="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
+
+                {/* ── Pindah Kategori ── */}
+                <div className={`p-3 rounded-xl border ${dark?'bg-[#1a2a3a] border-[#1e2d4a]':'bg-slate-50 border-slate-200'}`}>
+                  <p className={`text-[10px] font-bold uppercase tracking-wide ${mt} mb-2`}>Pindah Kategori</p>
+                  <div className="grid grid-cols-4 gap-1.5">
+                    {(['HOT','WARM','COLD','FREEZE'] as const).map(cat => {
+                      const cfg = CATEGORY_CFG[cat]
+                      const isActive = detailLead.leadCategory === cat
+                      return (
+                        <button key={cat} onClick={async () => {
+                          await updateLead(detailLead.id, { leadCategory: cat })
+                          setDetailLead(prev => prev ? { ...prev, leadCategory: cat } : prev)
+                          showToast(`✅ Lead dipindah ke ${cat}`)
+                        }}
+                          className={`py-2 rounded-xl text-[11px] font-bold transition-all border ${
+                            isActive
+                              ? `${cfg.bg} ${cfg.color} scale-105 shadow-md`
+                              : `${dark?'border-[#1e2d4a] text-slate-500 hover:bg-[#1e2d4a]':'border-slate-200 text-slate-400 hover:bg-slate-100'}`
+                          }`}>
+                          {cfg.icon} {cat}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  <p className={`text-[9px] ${mt} mt-2`}>HOT 🔥 = Siap closing · WARM 🌤 = Berminat · COLD ❄ = Belum tertarik · FREEZE 🧊 = Follow-up 3 bln lagi</p>
+                </div>
+
                 <div className="grid grid-cols-2 gap-3">
                   {[
-                    { label:'Kategori', value: detailLead.leadCategory ? <span className={`${CATEGORY_CFG[detailLead.leadCategory]?.color} font-bold`}>{detailLead.leadCategory}</span> : '—' },
                     { label:'Rating', value: detailLead.interestRating ? <StarRating value={detailLead.interestRating} dark={dark}/> : '—' },
                     { label:'Jenis Kelamin', value: detailLead.childGender === 'L' ? 'Laki-laki' : detailLead.childGender === 'P' ? 'Perempuan' : '—' },
                     { label:'Kelas', value: detailLead.childClass ?? '—' },
