@@ -23,13 +23,22 @@ import {
   FileSpreadsheet, MessageSquare
 } from 'lucide-react'
 import { useLeads, exportLeadsCSV, buildWABroadcast, buildWAIndividual } from '@/hooks/use-leads'
+import { useAuth } from '@/hooks/use-auth'
+import { useCampaigns } from '@/hooks/use-campaign'
+import type { Campaign } from '@/hooks/use-campaign'
+import { useGoals } from '@/hooks/use-goals'
+import type { OkrGoal } from '@/hooks/use-goals'
+import { useAttendance } from '@/hooks/use-attendance'
+import { useClosings, useCommissionSettings } from '@/hooks/use-commission'
+import { useTeams } from '@/hooks/use-team'
+import { createClient } from '@/lib/supabase/client'
 import type { Lead as DBLead, LeadCategory } from '@/hooks/use-leads'
 import { useNotifications } from '@/hooks/use-notifications'
 import { useKpiStats } from '@/hooks/use-kpi-stats'
 import { usePerformance } from '@/hooks/use-performance'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
-type Role = 'superadmin' | 'manager' | 'leader' | 'staff'
+type Role = 'owner' | 'deputi' | 'head_manager' | 'manager' | 'staff'
 type View = 'dashboard' | 'leads' | 'performance' | 'team' | 'campaigns' | 'reports' | 'goals' | 'attendance' | 'commission' | 'settings'
 
 type LeadStatus = 'baru' | 'dihubungi' | 'berminat' | 'survey' | 'meeting' | 'proposal' | 'closing' | 'gagal'
@@ -92,13 +101,26 @@ const LEADS_INIT: Lead[] = [
   ]},
 ]
 
+// ─── Konstanta Tim & Role ─────────────────────────────────────────────────────
+const TEAMS = ['Tim A','Tim B','Tim C','Tim D','Tim E','Tim F','Tim G','Tim H'] as const
+type TeamName = typeof TEAMS[number] | 'All'
+
+const ROLE_CONFIG: Record<Role, { label:string; badge:string; nav:string[] }> = {
+  owner:        { label:'Pemilik Yayasan', badge:'bg-yellow-500/20 text-yellow-300', nav:['dashboard','performance','team','campaigns','reports','goals','settings'] },
+  deputi:       { label:'Deputi',          badge:'bg-purple-500/20 text-purple-300', nav:['dashboard','performance','team','campaigns','reports','goals','attendance','commission','settings'] },
+  head_manager: { label:'Head Manager',   badge:'bg-red-500/20 text-red-300',    nav:['dashboard','leads','performance','team','campaigns','reports','goals','attendance','commission','settings'] },
+  manager:      { label:'Manager',         badge:'bg-orange-500/20 text-orange-400', nav:['dashboard','leads','performance','team','campaigns','goals','attendance','commission'] },
+  staff:        { label:'Staff Marketing', badge:'bg-blue-500/20 text-blue-400',    nav:['dashboard','leads','attendance','commission'] },
+}
+
+
 const CLASSES: ChildClass[] = ['TK','SD Kelas 1','SD Kelas 2','SD Kelas 3','SD Kelas 4','SD Kelas 5','SD Kelas 6','SMP Kelas 7','SMP Kelas 8','SMP Kelas 9','SMA Kelas 10','SMA Kelas 11','SMA Kelas 12']
 const LEAD_SOURCES: LeadSource[] = ['Instagram','WhatsApp','Referral','Facebook','Google','Walk-in','Lainnya']
 
 const USERS: User[] = [
-  { id:'1', name:'Reynaldi', role:'superadmin', team:'All', avatar:'R', email:'reynaldi@alex.id', online:true, revenue:185000000, leads:142, closing:38, score:98 },
+  { id:'1', name:'Reynaldi', role:'owner', team:'All', avatar:'R', email:'reynaldi@alex.id', online:true, revenue:185000000, leads:142, closing:38, score:98 },
   { id:'2', name:'Budi Manager', role:'manager', team:'All', avatar:'B', email:'budi@alex.id', online:true, revenue:0, leads:0, closing:0, score:0 },
-  { id:'3', name:'Siti Leader', role:'leader', team:'Alpha', avatar:'S', email:'siti@alex.id', online:false, revenue:0, leads:0, closing:0, score:0 },
+  { id:'3', name:'Siti Leader', role:'manager', team:'Alpha', avatar:'S', email:'siti@alex.id', online:false, revenue:0, leads:0, closing:0, score:0 },
   { id:'4', name:'Mr. Farhan', role:'staff', team:'Alpha', avatar:'F', email:'farhan@alex.id', online:true, revenue:92000000, leads:78, closing:21, score:87 },
   { id:'5', name:'Mr. Ramram', role:'staff', team:'Beta', avatar:'M', email:'ramram@alex.id', online:false, revenue:73000000, leads:61, closing:17, score:74 },
 ]
@@ -696,35 +718,69 @@ function PerformanceView({ dark, currentUser }: { dark:boolean; currentUser:User
 }
 
 // ─── Team View ────────────────────────────────────────────────────────────────
-function TeamView({ dark }: { dark:boolean }) {
+function TeamView({ dark, currentUser }: { dark:boolean; currentUser:User }) {
+  const { members, loading, addMember, deleteMember } = useTeams()
   const [showAdd, setShowAdd] = useState(false)
-  const [users, setUsers] = useState(USERS)
-  const [newUser, setNewUser] = useState({ name:'', email:'', role:'staff', team:'Alpha' })
-  const card = dark ? 'bg-[#111d35] border-[#1e2d4a]' : 'bg-white border-slate-200'
+  const [filterTeam, setFilterTeam] = useState<string>('All')
+  const [newMember, setNewMember] = useState({ name:'', email:'', role:'staff', team:'Tim A' })
+  const [saving, setSaving] = useState(false)
+
   const text = dark ? 'text-slate-100' : 'text-slate-800'
   const muted = dark ? 'text-slate-400' : 'text-slate-500'
   const inp = dark ? 'bg-[#0a1020] border-[#1e2d4a] text-slate-100 placeholder-slate-600' : 'bg-slate-50 border-slate-200 text-slate-800'
-  const roleBadge: Record<Role,string> = { superadmin:'bg-red-500/20 text-red-400', manager:'bg-orange-500/20 text-orange-400', leader:'bg-purple-500/20 text-purple-400', staff:'bg-blue-500/20 text-blue-400' }
-  const roleLabel: Record<Role,string> = { superadmin:'Super Admin', manager:'Manager', leader:'Team Leader', staff:'Staff' }
+
+  const canManage = ['owner','deputi','head_manager'].includes(currentUser.role)
+
+  // Filter berdasarkan role: manager hanya lihat timnya sendiri
+  const visibleMembers = members.filter(m => {
+    if (currentUser.role === 'manager') return m.team === currentUser.team || m.id === currentUser.id
+    if (filterTeam !== 'All') return m.team === filterTeam
+    return true
+  })
+
+  // Grouping per tim untuk summary
+  const teamSummary = TEAMS.map(t => {
+    const tm = members.filter(m => m.team === t)
+    return {
+      name: t,
+      total: tm.length,
+      revenue: tm.reduce((s,m) => s + m.revenue, 0),
+      leads: tm.reduce((s,m) => s + m.leads, 0),
+      closing: tm.reduce((s,m) => s + m.closing, 0),
+    }
+  }).filter(t => t.total > 0)
+
+  const handleAdd = async () => {
+    if (!newMember.name || !newMember.email) return
+    setSaving(true)
+    await addMember({ ...newMember, avatar: newMember.name.charAt(0).toUpperCase(), online:false, revenue:0, leads:0, closing:0, score:0 })
+    setNewMember({ name:'', email:'', role:'staff', team:'Tim A' })
+    setShowAdd(false); setSaving(false)
+  }
+
+  if (loading) return <div className={`text-center py-20 ${muted}`}>Memuat data tim...</div>
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 className={`font-bold text-lg ${text}`}>Manajemen Tim</h2>
-          <p className={`text-xs ${muted}`}>{users.length} anggota terdaftar</p>
+          <p className={`text-xs ${muted}`}>{members.length} anggota · {teamSummary.length} tim aktif</p>
         </div>
-        <button onClick={()=>setShowAdd(true)} className="px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-500 text-white text-sm font-semibold rounded-xl shadow-lg shadow-blue-500/30 flex items-center gap-2 hover:scale-105 transition-all">
-          <UserPlus size={15}/> Tambah User
-        </button>
+        {canManage && (
+          <button onClick={()=>setShowAdd(true)} className="px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-500 text-white text-sm font-semibold rounded-xl shadow-lg shadow-blue-500/30 flex items-center gap-2 hover:scale-105 transition-all">
+            <UserPlus size={15}/> Tambah User
+          </button>
+        )}
       </div>
 
+      {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label:'Total Staff', value:users.length, icon:Users, color:'from-blue-600 to-blue-400' },
-          { label:'Online Sekarang', value:users.filter(u=>u.online).length, icon:Activity, color:'from-green-600 to-green-400' },
-          { label:'Jumlah Tim', value:3, icon:Award, color:'from-purple-600 to-purple-400' },
-          { label:'Role Berbeda', value:4, icon:Star, color:'from-orange-600 to-orange-400' },
+          { label:'Total Anggota', value:members.length, icon:Users, color:'from-blue-600 to-blue-400' },
+          { label:'Tim Aktif', value:teamSummary.length, icon:Award, color:'from-purple-600 to-purple-400' },
+          { label:'Total Leads', value:members.reduce((s,m)=>s+m.leads,0), icon:TrendingUp, color:'from-green-600 to-green-400' },
+          { label:'Total Closing', value:members.reduce((s,m)=>s+m.closing,0), icon:Target, color:'from-orange-600 to-orange-400' },
         ].map(s=>(
           <Card key={s.label} dark={dark} className="p-4 flex items-center gap-3">
             <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${s.color} flex items-center justify-center shrink-0`}><s.icon size={16} className="text-white"/></div>
@@ -733,97 +789,127 @@ function TeamView({ dark }: { dark:boolean }) {
         ))}
       </div>
 
+      {/* Team Leaderboard A-H */}
+      {teamSummary.length > 0 && (
+        <Card dark={dark} className="p-5">
+          <h3 className={`font-bold mb-4 ${text}`}>Leaderboard Tim A–H</h3>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {[...teamSummary].sort((a,b)=>b.closing-a.closing).map((t,i)=>(
+              <div key={t.name} className={`p-3 rounded-xl border ${dark?'border-[#1e2d4a] bg-[#0a1020]':'border-slate-200 bg-slate-50'}`}>
+                <div className="flex items-center justify-between mb-2">
+                  <span className={`text-xs font-bold ${text}`}>{t.name}</span>
+                  <span className={`text-xs font-bold ${i===0?'text-yellow-400':i===1?'text-slate-400':i===2?'text-orange-400':muted}`}>#{i+1}</span>
+                </div>
+                <p className={`text-lg font-bold ${text}`}>{t.closing}</p>
+                <p className={`text-xs ${muted}`}>closing</p>
+                <p className={`text-xs text-blue-400 mt-0.5`}>{t.leads} leads · {t.total} orang</p>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      {/* Filter Tim */}
+      {currentUser.role !== 'manager' && (
+        <div className="flex gap-2 flex-wrap">
+          {(['All', ...TEAMS] as string[]).map(t=>(
+            <button key={t} onClick={()=>setFilterTeam(t)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors ${filterTeam===t?(dark?'bg-blue-600 text-white':'bg-blue-600 text-white'):(dark?'bg-[#1e2d4a] text-slate-400 hover:text-slate-200':'bg-slate-100 text-slate-500 hover:text-slate-700')}`}>
+              {t === 'All' ? 'Semua Tim' : t}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Tabel Anggota */}
       <Card dark={dark} className="overflow-hidden">
         <div className={`px-5 py-3 border-b flex items-center justify-between ${dark?'border-[#1e2d4a]':'border-slate-100'}`}>
-          <h3 className={`font-bold ${text}`}>Daftar Anggota</h3>
-          <div className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs ${inp}`}>
-            <Search size={12} className={muted}/><input placeholder="Cari..." className="bg-transparent outline-none w-24"/>
-          </div>
+          <h3 className={`font-bold ${text}`}>Daftar Anggota ({visibleMembers.length})</h3>
         </div>
         <table className="w-full text-sm">
           <thead>
             <tr className={`text-xs uppercase tracking-wider ${muted} ${dark?'bg-[#0a1020]':'bg-slate-50'}`}>
-              <th className="px-5 py-3 text-left">Pengguna</th>
+              <th className="px-5 py-3 text-left">Anggota</th>
               <th className="px-5 py-3 text-left hidden md:table-cell">Role</th>
-              <th className="px-5 py-3 text-left hidden lg:table-cell">Tim</th>
-              <th className="px-5 py-3 text-left hidden lg:table-cell">Revenue</th>
-              <th className="px-5 py-3 text-left">Status</th>
-              <th className="px-5 py-3 text-center">Aksi</th>
+              <th className="px-5 py-3 text-left hidden md:table-cell">Tim</th>
+              <th className="px-5 py-3 text-right hidden lg:table-cell">Leads</th>
+              <th className="px-5 py-3 text-right hidden lg:table-cell">Closing</th>
+              {canManage && <th className="px-5 py-3 text-center">Aksi</th>}
             </tr>
           </thead>
           <tbody>
-            {users.map(u=>(
-              <motion.tr key={u.id} layout className={`border-t ${dark?'border-[#1e2d4a] hover:bg-[#1a2a4a]':'border-slate-100 hover:bg-blue-50'} transition-colors`}>
-                <td className="px-5 py-3">
-                  <div className="flex items-center gap-3">
-                    <div className="relative">
-                      <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold text-sm">{u.avatar}</div>
-                      <div className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 ${dark?'border-[#111d35]':'border-white'} ${u.online?'bg-green-400':'bg-slate-400'}`}/>
+            {visibleMembers.map(u=>{
+              const rc = ROLE_CONFIG[u.role as Role] ?? ROLE_CONFIG.staff
+              return (
+                <motion.tr key={u.id} layout className={`border-t ${dark?'border-[#1e2d4a] hover:bg-[#1a2a4a]':'border-slate-100 hover:bg-blue-50'} transition-colors`}>
+                  <td className="px-5 py-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold text-sm shrink-0">
+                        {u.avatar || u.name.charAt(0)}
+                      </div>
+                      <div><p className={`font-semibold text-sm ${text}`}>{u.name}</p><p className={`text-xs ${muted}`}>{u.email}</p></div>
                     </div>
-                    <div><p className={`font-semibold text-sm ${text}`}>{u.name}</p><p className={`text-xs ${muted}`}>{u.email}</p></div>
-                  </div>
-                </td>
-                <td className="px-5 py-3 hidden md:table-cell">
-                  <span className={`text-xs px-2.5 py-1 rounded-xl font-semibold ${roleBadge[u.role]}`}>{roleLabel[u.role]}</span>
-                </td>
-                <td className={`px-5 py-3 hidden lg:table-cell text-sm ${muted}`}>{u.team}</td>
-                <td className={`px-5 py-3 hidden lg:table-cell text-sm font-medium ${text}`}>{u.revenue>0?fmtRp(u.revenue):'-'}</td>
-                <td className="px-5 py-3">
-                  <span className={`text-xs px-2 py-1 rounded-lg font-medium flex items-center gap-1 w-fit ${u.online?'bg-green-500/20 text-green-400':dark?'bg-[#1e2d4a] text-slate-500':'bg-slate-100 text-slate-400'}`}>
-                    <div className={`w-1.5 h-1.5 rounded-full ${u.online?'bg-green-400':'bg-slate-400'}`}/>{u.online?'Online':'Offline'}
-                  </span>
-                </td>
-                <td className="px-5 py-3 text-center">
-                  <div className="flex items-center justify-center gap-1">
-                    <button className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${dark?'bg-[#1e2d4a] hover:bg-blue-600 text-slate-400 hover:text-white':'bg-slate-100 hover:bg-blue-500 text-slate-500 hover:text-white'}`}><Edit size={12}/></button>
-                    <button onClick={()=>setUsers(p=>p.filter(x=>x.id!==u.id))} className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${dark?'bg-[#1e2d4a] hover:bg-red-600 text-slate-400 hover:text-white':'bg-slate-100 hover:bg-red-500 text-slate-500 hover:text-white'}`}><Trash2 size={12}/></button>
-                  </div>
-                </td>
-              </motion.tr>
-            ))}
+                  </td>
+                  <td className="px-5 py-3 hidden md:table-cell">
+                    <span className={`text-xs px-2.5 py-1 rounded-xl font-semibold ${rc.badge}`}>{rc.label}</span>
+                  </td>
+                  <td className={`px-5 py-3 hidden md:table-cell text-sm ${muted}`}>
+                    <span className={`px-2 py-0.5 rounded-lg text-xs font-medium ${dark?'bg-[#1e2d4a]':'bg-slate-100'}`}>{u.team}</span>
+                  </td>
+                  <td className={`px-5 py-3 text-right hidden lg:table-cell text-sm font-medium ${text}`}>{u.leads}</td>
+                  <td className={`px-5 py-3 text-right hidden lg:table-cell text-sm font-bold text-green-400`}>{u.closing}</td>
+                  {canManage && (
+                    <td className="px-5 py-3 text-center">
+                      <button onClick={()=>deleteMember(u.id)} className={`w-7 h-7 rounded-lg flex items-center justify-center mx-auto transition-colors ${dark?'bg-[#1e2d4a] hover:bg-red-600 text-slate-400 hover:text-white':'bg-slate-100 hover:bg-red-500 text-slate-500 hover:text-white'}`}><Trash2 size={12}/></button>
+                    </td>
+                  )}
+                </motion.tr>
+              )
+            })}
+            {visibleMembers.length === 0 && (
+              <tr><td colSpan={6} className={`px-5 py-10 text-center text-sm ${muted}`}>Belum ada anggota di tim ini</td></tr>
+            )}
           </tbody>
         </table>
       </Card>
 
-      {/* Modal */}
+      {/* Modal Tambah User */}
       <AnimatePresence>
         {showAdd && (
-          <motion.div initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }} className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={()=>setShowAdd(false)}>
+          <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={()=>setShowAdd(false)}>
             <div className="absolute inset-0 bg-black/60 backdrop-blur-sm"/>
-            <motion.div initial={{ scale:0.9, opacity:0 }} animate={{ scale:1, opacity:1 }} exit={{ scale:0.9, opacity:0 }}
+            <motion.div initial={{scale:0.9,opacity:0}} animate={{scale:1,opacity:1}} exit={{scale:0.9,opacity:0}}
               className={`relative w-full max-w-md rounded-2xl border shadow-2xl ${dark?'bg-[#0f1729] border-[#1e2d4a]':'bg-white border-slate-200'}`} onClick={e=>e.stopPropagation()}>
               <div className={`px-5 py-4 border-b flex items-center justify-between ${dark?'border-[#1e2d4a]':'border-slate-100'}`}>
-                <h3 className={`font-bold ${text}`}>Tambah User Baru</h3>
+                <h3 className={`font-bold ${text}`}>Tambah Anggota Baru</h3>
                 <button onClick={()=>setShowAdd(false)} className={`w-8 h-8 rounded-xl flex items-center justify-center ${dark?'bg-[#1e2d4a] text-slate-400':'bg-slate-100 text-slate-500'}`}><X size={14}/></button>
               </div>
               <div className="p-5 space-y-3">
-                {[['Nama Lengkap','text','name'],['Email','email','email']].map(([lbl,type,key])=>(
-                  <div key={key}>
-                    <label className={`block text-xs font-semibold mb-1 ${muted}`}>{lbl}</label>
-                    <input type={type} value={(newUser as any)[key]} onChange={e=>setNewUser(p=>({...p,[key]:e.target.value}))} className={`w-full px-3 py-2 rounded-xl border text-sm outline-none focus:ring-2 focus:ring-blue-500/40 ${inp}`}/>
-                  </div>
-                ))}
+                <div><label className={`block text-xs font-semibold mb-1 ${muted}`}>Nama Lengkap</label>
+                  <input value={newMember.name} onChange={e=>setNewMember(p=>({...p,name:e.target.value}))} className={`w-full px-3 py-2 rounded-xl border text-sm outline-none focus:ring-2 focus:ring-blue-500/40 ${inp}`} placeholder="Nama lengkap"/></div>
+                <div><label className={`block text-xs font-semibold mb-1 ${muted}`}>Email</label>
+                  <input type="email" value={newMember.email} onChange={e=>setNewMember(p=>({...p,email:e.target.value}))} className={`w-full px-3 py-2 rounded-xl border text-sm outline-none focus:ring-2 focus:ring-blue-500/40 ${inp}`} placeholder="email@alexandria.sch.id"/></div>
                 <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className={`block text-xs font-semibold mb-1 ${muted}`}>Role</label>
-                    <select value={newUser.role} onChange={e=>setNewUser(p=>({...p,role:e.target.value}))} className={`w-full px-3 py-2 rounded-xl border text-sm outline-none ${inp}`}>
-                      <option value="staff">Staff</option><option value="leader">Team Leader</option><option value="manager">Manager</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className={`block text-xs font-semibold mb-1 ${muted}`}>Tim</label>
-                    <select value={newUser.team} onChange={e=>setNewUser(p=>({...p,team:e.target.value}))} className={`w-full px-3 py-2 rounded-xl border text-sm outline-none ${inp}`}>
-                      <option>Alpha</option><option>Beta</option><option>Gamma</option>
-                    </select>
-                  </div>
+                  <div><label className={`block text-xs font-semibold mb-1 ${muted}`}>Role</label>
+                    <select value={newMember.role} onChange={e=>setNewMember(p=>({...p,role:e.target.value}))} className={`w-full px-3 py-2 rounded-xl border text-sm outline-none ${inp}`}>
+                      <option value="staff">Staff Marketing</option>
+                      <option value="manager">Manager</option>
+                      <option value="head_manager">Head Manager</option>
+                      <option value="deputi">Deputi</option>
+                      <option value="owner">Pemilik</option>
+                    </select></div>
+                  <div><label className={`block text-xs font-semibold mb-1 ${muted}`}>Tim</label>
+                    <select value={newMember.team} onChange={e=>setNewMember(p=>({...p,team:e.target.value}))} className={`w-full px-3 py-2 rounded-xl border text-sm outline-none ${inp}`}>
+                      <option value="All">All (Management)</option>
+                      {TEAMS.map(t=><option key={t} value={t}>{t}</option>)}
+                    </select></div>
                 </div>
               </div>
               <div className={`px-5 py-4 flex gap-3 border-t ${dark?'border-[#1e2d4a]':'border-slate-100'}`}>
                 <button onClick={()=>setShowAdd(false)} className={`flex-1 py-2.5 rounded-xl text-sm font-semibold ${dark?'bg-[#1e2d4a] text-slate-300':'bg-slate-100 text-slate-700'}`}>Batal</button>
-                <button onClick={()=>{
-                  setUsers(p=>[...p,{id:String(Date.now()),name:newUser.name,role:newUser.role as Role,team:newUser.team,avatar:newUser.name.charAt(0)||'U',email:newUser.email,online:false,revenue:0,leads:0,closing:0,score:0}])
-                  setShowAdd(false); setNewUser({name:'',email:'',role:'staff',team:'Alpha'})
-                }} className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-blue-600 to-blue-500 shadow-lg shadow-blue-500/30">Simpan</button>
+                <button onClick={handleAdd} disabled={saving||!newMember.name||!newMember.email} className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-blue-600 to-blue-500 shadow-lg shadow-blue-500/30 disabled:opacity-50 flex items-center justify-center gap-2">
+                  {saving?<><RefreshCw size={13} className="animate-spin"/>Menyimpan...</>:'Simpan'}
+                </button>
               </div>
             </motion.div>
           </motion.div>
@@ -833,90 +919,155 @@ function TeamView({ dark }: { dark:boolean }) {
   )
 }
 
-// ─── Campaigns View ───────────────────────────────────────────────────────────
+
+// ─── Campaigns View ─────────────────────────────────────────────────────────
 function CampaignsView({ dark }: { dark:boolean }) {
-  const [campaigns, setCampaigns] = useState(CAMPAIGNS)
+  const { campaigns, loading, createCampaign, deleteCampaign } = useCampaigns()
+  const [showForm, setShowForm] = useState(false)
+  const [form, setForm] = useState({ name:'', status:'Draft' as Campaign['status'], budget:0, start:'', end:'', staff:[] as string[] })
+  const [saving, setSaving] = useState(false)
   const text = dark ? 'text-slate-100' : 'text-slate-800'
   const muted = dark ? 'text-slate-400' : 'text-slate-500'
+  const inp = dark ? 'bg-[#0a1020] border-[#1e2d4a] text-slate-100' : 'bg-slate-50 border-slate-200 text-slate-800'
   const STATUS: Record<string,{label:string;bg:string;text:string;icon:React.ComponentType<any>}> = {
     Active:{label:'Aktif',bg:'bg-green-500/20',text:'text-green-400',icon:PlayCircle},
     Paused:{label:'Dijeda',bg:'bg-yellow-500/20',text:'text-yellow-400',icon:PauseCircle},
     Completed:{label:'Selesai',bg:'bg-blue-500/20',text:'text-blue-400',icon:CheckCircle},
+    Draft:{label:'Draft',bg:'bg-slate-500/20',text:'text-slate-400',icon:FileText},
   }
-
+  const handleCreate = async () => {
+    if (!form.name) return
+    setSaving(true)
+    await createCampaign({ ...form, leads:0, closing:0, revenue:0 })
+    setForm({ name:'', status:'Draft', budget:0, start:'', end:'', staff:[] })
+    setShowForm(false); setSaving(false)
+  }
+  if (loading) return <div className={`text-center py-20 ${muted}`}>Memuat campaign...</div>
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <div><h2 className={`font-bold text-lg ${text}`}>Campaign Management</h2><p className={`text-xs ${muted}`}>{campaigns.length} campaign</p></div>
-        <button className="px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-500 text-white text-sm font-semibold rounded-xl shadow-lg shadow-blue-500/30 flex items-center gap-2 hover:scale-105 transition-all"><Plus size={15}/>New Campaign</button>
+        <button onClick={()=>setShowForm(!showForm)} className="px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-500 text-white text-sm font-semibold rounded-xl shadow-lg shadow-blue-500/30 flex items-center gap-2 hover:scale-105 transition-all"><Plus size={15}/>New Campaign</button>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {campaigns.map(c=>{
-          const sc = STATUS[c.status]
-          const roi = ((c.revenue - c.budget) / c.budget * 100).toFixed(0)
-          return (
-            <Card key={c.id} dark={dark} className="p-5">
-              <div className="flex items-start justify-between mb-4">
-                <div>
-                  <h3 className={`font-bold ${text}`}>{c.name}</h3>
-                  <p className={`text-xs ${muted}`}>{c.start} → {c.end}</p>
+      {showForm && (
+        <Card dark={dark} className="p-5 space-y-3">
+          <h3 className={`font-bold ${text}`}>Buat Campaign Baru</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div><label className={`text-xs font-semibold ${muted} block mb-1`}>Nama Campaign</label>
+              <input value={form.name} onChange={e=>setForm(p=>({...p,name:e.target.value}))} className={`w-full px-3 py-2 rounded-xl border text-sm outline-none focus:ring-2 focus:ring-blue-500/40 ${inp}`} placeholder="Ramadan Promo 2026"/></div>
+            <div><label className={`text-xs font-semibold ${muted} block mb-1`}>Status</label>
+              <select value={form.status} onChange={e=>setForm(p=>({...p,status:e.target.value as Campaign['status']}))} className={`w-full px-3 py-2 rounded-xl border text-sm outline-none ${inp}`}>
+                {['Draft','Active','Paused','Completed'].map(s=><option key={s}>{s}</option>)}</select></div>
+            <div><label className={`text-xs font-semibold ${muted} block mb-1`}>Mulai</label>
+              <input type="date" value={form.start} onChange={e=>setForm(p=>({...p,start:e.target.value}))} className={`w-full px-3 py-2 rounded-xl border text-sm outline-none ${inp}`}/></div>
+            <div><label className={`text-xs font-semibold ${muted} block mb-1`}>Selesai</label>
+              <input type="date" value={form.end} onChange={e=>setForm(p=>({...p,end:e.target.value}))} className={`w-full px-3 py-2 rounded-xl border text-sm outline-none ${inp}`}/></div>
+            <div><label className={`text-xs font-semibold ${muted} block mb-1`}>Budget (Rp)</label>
+              <input type="number" value={form.budget} onChange={e=>setForm(p=>({...p,budget:Number(e.target.value)}))} className={`w-full px-3 py-2 rounded-xl border text-sm outline-none ${inp}`}/></div>
+          </div>
+          <div className="flex gap-2 pt-1">
+            <button onClick={handleCreate} disabled={saving||!form.name} className="px-4 py-2 bg-green-600 text-white text-xs font-semibold rounded-xl hover:bg-green-500 disabled:opacity-50 flex items-center gap-1.5">
+              {saving?<RefreshCw size={12} className="animate-spin"/>:<Check size={12}/>}Simpan</button>
+            <button onClick={()=>setShowForm(false)} className={`px-4 py-2 text-xs font-semibold rounded-xl ${dark?'bg-[#1e2d4a] text-slate-400':'bg-slate-100 text-slate-500'}`}>Batal</button>
+          </div>
+        </Card>
+      )}
+      {campaigns.length === 0 && !showForm ? (
+        <Card dark={dark} className="p-12 text-center">
+          <Megaphone size={40} className={`mx-auto mb-3 ${muted}`}/>
+          <p className={`font-bold ${text}`}>Belum ada campaign</p>
+          <p className={`text-xs mt-1 ${muted}`}>Klik "New Campaign" untuk mulai</p>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {campaigns.map(c=>{
+            const sc = STATUS[c.status] ?? STATUS.Draft
+            const roi = c.budget > 0 ? ((c.revenue - c.budget) / c.budget * 100).toFixed(0) : '0'
+            return (
+              <Card key={c.id} dark={dark} className="p-5">
+                <div className="flex items-start justify-between mb-4">
+                  <div><h3 className={`font-bold ${text}`}>{c.name}</h3><p className={`text-xs ${muted}`}>{c.start} → {c.end}</p></div>
+                  <span className={`text-xs px-2.5 py-1 rounded-xl font-semibold flex items-center gap-1 ${sc.bg} ${sc.text}`}><sc.icon size={12}/>{sc.label}</span>
                 </div>
-                <span className={`text-xs px-2.5 py-1 rounded-xl font-semibold flex items-center gap-1 ${sc.bg} ${sc.text}`}>
-                  <sc.icon size={12}/>{sc.label}
-                </span>
-              </div>
-              <div className="grid grid-cols-4 gap-2 mb-4">
-                {[
-                  {l:'Leads',v:c.leads,color:'text-blue-400'},
-                  {l:'Closing',v:c.closing,color:'text-green-400'},
-                  {l:'Revenue',v:fmtRp(c.revenue),color:'text-orange-400'},
-                  {l:'ROI',v:`${roi}%`,color:Number(roi)>0?'text-emerald-400':'text-red-400'},
-                ].map(s=>(
-                  <div key={s.l} className="text-center">
-                    <p className={`text-base font-bold ${s.color}`}>{s.v}</p>
-                    <p className={`text-xs ${muted}`}>{s.l}</p>
-                  </div>
-                ))}
-              </div>
-              <div className="mb-3">
-                <div className="flex justify-between text-xs mb-1"><span className={muted}>Budget terpakai</span><span className={text}>{fmtRp(c.budget * 0.7)} / {fmtRp(c.budget)}</span></div>
-                <ProgressBar value={70} max={100} color="blue" dark={dark} />
-              </div>
-              <div className={`flex flex-wrap gap-1.5 pt-3 border-t ${dark?'border-[#1e2d4a]':'border-slate-100'} items-center justify-between`}>
-                <div className="flex flex-wrap gap-1">{c.staff.map(s=><span key={s} className={`text-xs px-2 py-0.5 rounded-lg ${dark?'bg-[#1e2d4a] text-slate-400':'bg-slate-100 text-slate-500'}`}>{s}</span>)}</div>
-                <div className="flex gap-1">
-                  <button className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${dark?'bg-[#1e2d4a] hover:bg-blue-600 text-slate-400 hover:text-white':'bg-slate-100 hover:bg-blue-500 text-slate-500 hover:text-white'}`}><Edit size={12}/></button>
-                  <button onClick={()=>setCampaigns(p=>p.filter(x=>x.id!==c.id))} className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${dark?'bg-[#1e2d4a] hover:bg-red-600 text-slate-400 hover:text-white':'bg-slate-100 hover:bg-red-500 text-slate-500 hover:text-white'}`}><Trash2 size={12}/></button>
+                <div className="grid grid-cols-4 gap-2 mb-4">
+                  {[{l:'Leads',v:c.leads,color:'text-blue-400'},{l:'Closing',v:c.closing,color:'text-green-400'},{l:'Revenue',v:fmtRp(c.revenue),color:'text-orange-400'},{l:'ROI',v:`${roi}%`,color:Number(roi)>0?'text-emerald-400':'text-red-400'}].map(s=>(
+                    <div key={s.l} className="text-center"><p className={`text-base font-bold ${s.color}`}>{s.v}</p><p className={`text-xs ${muted}`}>{s.l}</p></div>
+                  ))}
                 </div>
-              </div>
-            </Card>
-          )
-        })}
-      </div>
+                <div className={`flex gap-1 pt-3 border-t ${dark?'border-[#1e2d4a]':'border-slate-100'} justify-end`}>
+                  <button onClick={()=>deleteCampaign(c.id)} className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${dark?'bg-[#1e2d4a] hover:bg-red-600 text-slate-400 hover:text-white':'bg-slate-100 hover:bg-red-500 text-slate-500 hover:text-white'}`}><Trash2 size={12}/></button>
+                </div>
+              </Card>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }
 
-// ─── Goals / OKR View ─────────────────────────────────────────────────────────
+
+// ─── Goals / OKR View ───────────────────────────────────────────────────────
 function GoalsView({ dark }: { dark:boolean }) {
+  const { goals, loading, createGoal, deleteGoal } = useGoals()
+  const [showForm, setShowForm] = useState(false)
+  const [form, setForm] = useState({ title:'', description:'', target:100, current:0, unit:'', deadline:'', owner:'', priority:'medium' as OkrGoal['priority'], status:'on-track' as OkrGoal['status'] })
+  const [saving, setSaving] = useState(false)
   const text = dark ? 'text-slate-100' : 'text-slate-800'
   const muted = dark ? 'text-slate-400' : 'text-slate-500'
+  const inp = dark ? 'bg-[#0a1020] border-[#1e2d4a] text-slate-100' : 'bg-slate-50 border-slate-200 text-slate-800'
   const prio: Record<string,string> = { high:'bg-red-500/20 text-red-400', medium:'bg-yellow-500/20 text-yellow-400', low:'bg-blue-500/20 text-blue-400' }
   const statusCfg: Record<string,{color:string;label:string}> = {
-    'on-track':{color:'text-green-400',label:'On Track'},
-    'at-risk':{color:'text-yellow-400',label:'At Risk'},
-    'behind':{color:'text-red-400',label:'Behind'},
+    'on-track':{color:'text-green-400',label:'On Track'},'at-risk':{color:'text-yellow-400',label:'At Risk'},'behind':{color:'text-red-400',label:'Behind'},'completed':{color:'text-blue-400',label:'Completed'}
   }
-
+  const handleCreate = async () => {
+    if (!form.title) return
+    setSaving(true)
+    await createGoal(form)
+    setForm({ title:'', description:'', target:100, current:0, unit:'', deadline:'', owner:'', priority:'medium', status:'on-track' })
+    setShowForm(false); setSaving(false)
+  }
+  if (loading) return <div className={`text-center py-20 ${muted}`}>Memuat goals...</div>
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <div><h2 className={`font-bold text-lg ${text}`}>Goal Setting · OKR</h2><p className={`text-xs ${muted}`}>Q2 2026 · April – Juni</p></div>
-        <button className="px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-500 text-white text-sm font-semibold rounded-xl shadow-lg shadow-blue-500/30 flex items-center gap-2 hover:scale-105 transition-all"><Plus size={15}/>Tambah OKR</button>
+        <button onClick={()=>setShowForm(!showForm)} className="px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-500 text-white text-sm font-semibold rounded-xl shadow-lg shadow-blue-500/30 flex items-center gap-2 hover:scale-105 transition-all"><Plus size={15}/>Tambah OKR</button>
       </div>
-      {GOALS.map(g=>{
-        const pct = Math.min(100, Math.round((g.current/g.target)*100))
-        const st = statusCfg[g.status]
+      {showForm && (
+        <Card dark={dark} className="p-5 space-y-3">
+          <h3 className={`font-bold ${text}`}>OKR Baru</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="md:col-span-2"><label className={`text-xs font-semibold ${muted} block mb-1`}>Judul Goal</label>
+              <input value={form.title} onChange={e=>setForm(p=>({...p,title:e.target.value}))} className={`w-full px-3 py-2 rounded-xl border text-sm outline-none focus:ring-2 focus:ring-blue-500/40 ${inp}`} placeholder="Contoh: 100 Leads di Q2"/></div>
+            <div><label className={`text-xs font-semibold ${muted} block mb-1`}>Target (angka)</label>
+              <input type="number" value={form.target} onChange={e=>setForm(p=>({...p,target:Number(e.target.value)}))} className={`w-full px-3 py-2 rounded-xl border text-sm outline-none ${inp}`}/></div>
+            <div><label className={`text-xs font-semibold ${muted} block mb-1`}>Satuan</label>
+              <input value={form.unit} onChange={e=>setForm(p=>({...p,unit:e.target.value}))} className={`w-full px-3 py-2 rounded-xl border text-sm outline-none ${inp}`} placeholder="leads, closing, siswa"/></div>
+            <div><label className={`text-xs font-semibold ${muted} block mb-1`}>Deadline</label>
+              <input type="date" value={form.deadline} onChange={e=>setForm(p=>({...p,deadline:e.target.value}))} className={`w-full px-3 py-2 rounded-xl border text-sm outline-none ${inp}`}/></div>
+            <div><label className={`text-xs font-semibold ${muted} block mb-1`}>Owner</label>
+              <input value={form.owner} onChange={e=>setForm(p=>({...p,owner:e.target.value}))} className={`w-full px-3 py-2 rounded-xl border text-sm outline-none ${inp}`} placeholder="Nama PIC"/></div>
+            <div><label className={`text-xs font-semibold ${muted} block mb-1`}>Prioritas</label>
+              <select value={form.priority} onChange={e=>setForm(p=>({...p,priority:e.target.value as OkrGoal['priority']}))} className={`w-full px-3 py-2 rounded-xl border text-sm outline-none ${inp}`}>
+                <option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select></div>
+          </div>
+          <div className="flex gap-2 pt-1">
+            <button onClick={handleCreate} disabled={saving||!form.title} className="px-4 py-2 bg-green-600 text-white text-xs font-semibold rounded-xl hover:bg-green-500 disabled:opacity-50 flex items-center gap-1.5">
+              {saving?<RefreshCw size={12} className="animate-spin"/>:<Check size={12}/>}Simpan</button>
+            <button onClick={()=>setShowForm(false)} className={`px-4 py-2 text-xs font-semibold rounded-xl ${dark?'bg-[#1e2d4a] text-slate-400':'bg-slate-100 text-slate-500'}`}>Batal</button>
+          </div>
+        </Card>
+      )}
+      {goals.length === 0 && !showForm ? (
+        <Card dark={dark} className="p-12 text-center">
+          <Target size={40} className={`mx-auto mb-3 ${muted}`}/>
+          <p className={`font-bold ${text}`}>Belum ada OKR Goals</p>
+          <p className={`text-xs mt-1 ${muted}`}>Klik "Tambah OKR" untuk mulai</p>
+        </Card>
+      ) : goals.map(g=>{
+        const pct = Math.min(100, g.target > 0 ? Math.round((g.current/g.target)*100) : 0)
+        const st = statusCfg[g.status] ?? statusCfg['on-track']
         return (
           <Card key={g.id} dark={dark} className="p-5">
             <div className="flex items-start justify-between mb-3 flex-wrap gap-2">
@@ -924,27 +1075,23 @@ function GoalsView({ dark }: { dark:boolean }) {
                 <div className="flex items-center gap-2 flex-wrap mb-1">
                   <h3 className={`font-bold ${text}`}>{g.title}</h3>
                   <span className={`text-xs px-2 py-0.5 rounded-lg font-semibold ${prio[g.priority]}`}>{g.priority.toUpperCase()}</span>
-                  <span className={`text-xs font-semibold ${st.color} flex items-center gap-1`}>
-                    {g.status==='on-track'?<CheckCircle size={11}/>:g.status==='at-risk'?<AlertCircle size={11}/>:<X size={11}/>}{st.label}
-                  </span>
+                  <span className={`text-xs font-semibold ${st.color}`}>{st.label}</span>
                 </div>
                 <p className={`text-xs ${muted}`}>{g.description}</p>
               </div>
-              <div className="text-right shrink-0">
-                <p className={`text-2xl font-bold ${text}`}>{pct}%</p>
-                <p className={`text-xs ${muted}`}>tercapai</p>
+              <div className="flex items-center gap-2 shrink-0">
+                <div className="text-right"><p className={`text-2xl font-bold ${text}`}>{pct}%</p><p className={`text-xs ${muted}`}>tercapai</p></div>
+                <button onClick={()=>deleteGoal(g.id)} className={`w-7 h-7 rounded-lg flex items-center justify-center ${dark?'bg-[#1e2d4a] hover:bg-red-600 text-slate-400 hover:text-white':'bg-slate-100 hover:bg-red-500 text-slate-500 hover:text-white'} transition-colors`}><Trash2 size={12}/></button>
               </div>
             </div>
             <div className="flex items-center justify-between text-xs mb-2">
               <span className={muted}>{g.current} {g.unit} dari target {g.target} {g.unit}</span>
               <span className={muted}>Deadline: {g.deadline}</span>
             </div>
-            <ProgressBar value={g.current} max={g.target} color={g.status==='on-track'?'green':g.status==='at-risk'?'yellow':'orange'} dark={dark} />
+            <ProgressBar value={g.current} max={g.target} color={g.status==='on-track'?'green':g.status==='at-risk'?'yellow':'orange'} dark={dark}/>
             <div className={`flex items-center gap-2 mt-3 pt-3 border-t ${dark?'border-[#1e2d4a]':'border-slate-100'}`}>
               <div className="w-5 h-5 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold text-[9px]">{g.owner.charAt(0)}</div>
               <span className={`text-xs ${muted}`}>{g.owner}</span>
-              <div className="flex-1"/>
-              <button className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${dark?'bg-[#1e2d4a] hover:bg-blue-600 text-slate-400 hover:text-white':'bg-slate-100 hover:bg-blue-500 text-slate-500 hover:text-white'}`}><Edit size={12}/></button>
             </div>
           </Card>
         )
@@ -953,43 +1100,30 @@ function GoalsView({ dark }: { dark:boolean }) {
   )
 }
 
-// ─── Attendance View ──────────────────────────────────────────────────────────
+
+// ─── Attendance View ────────────────────────────────────────────────────────
 function AttendanceView({ dark, currentUser }: { dark:boolean; currentUser:User }) {
   const [checkingIn, setCheckingIn] = useState(false)
-  const { records, checkIn } = usePerformance(currentUser.id)
+  const [selStatus, setSelStatus] = useState<'hadir'|'wfh'|'dinas'>('hadir')
+  const { records, todayRecord, loading, checkIn, getMonthlySummary } = useAttendance(currentUser.id)
   const text = dark ? 'text-slate-100' : 'text-slate-800'
   const muted = dark ? 'text-slate-400' : 'text-slate-500'
-
-  const todayISO = new Date().toISOString().split('T')[0]
   const todayStr = new Date().toLocaleDateString('id-ID', { weekday:'long', year:'numeric', month:'long', day:'numeric' })
-  const todayRecord = records.find(r => r.recordDate === todayISO)
   const checkedIn = !!todayRecord?.checkInTime
-
+  const summary = getMonthlySummary(new Date().toISOString().slice(0,7))
+  const attStatus: Record<string,{bg:string;text:string}> = {
+    hadir:{bg:'bg-green-500/20',text:'text-green-400'}, wfh:{bg:'bg-blue-500/20',text:'text-blue-400'},
+    izin:{bg:'bg-yellow-500/20',text:'text-yellow-400'}, alpa:{bg:'bg-red-500/20',text:'text-red-400'}, dinas:{bg:'bg-purple-500/20',text:'text-purple-400'},
+  }
   const handleCheckIn = async () => {
     if (checkedIn) return
     setCheckingIn(true)
-    await checkIn()
+    await checkIn(selStatus)
     setCheckingIn(false)
   }
-
-  const attStatus: Record<string,{bg:string;text:string}> = {
-    hadir: {bg:'bg-green-500/20',text:'text-green-400'},
-    wfh: {bg:'bg-blue-500/20',text:'text-blue-400'},
-    izin: {bg:'bg-yellow-500/20',text:'text-yellow-400'},
-    alpa: {bg:'bg-red-500/20',text:'text-red-400'},
-    dinas: {bg:'bg-purple-500/20',text:'text-purple-400'},
-  }
-
-  const monthlyCounts = records.reduce((acc, r) => {
-    acc[r.attendance] = (acc[r.attendance] ?? 0) + 1
-    return acc
-  }, {} as Record<string, number>)
-
   return (
     <div className="space-y-5">
       <div><h2 className={`font-bold text-lg ${text}`}>Attendance & Check-in</h2><p className={`text-xs ${muted}`}>{todayStr}</p></div>
-
-      {/* Check-in Card */}
       <Card dark={dark} className="p-6">
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div className="flex items-center gap-4">
@@ -998,69 +1132,57 @@ function AttendanceView({ dark, currentUser }: { dark:boolean; currentUser:User 
             </div>
             <div>
               <h3 className={`font-bold text-lg ${text}`}>{checkedIn ? `Check-in pada ${todayRecord?.checkInTime}` : 'Belum Check-in'}</h3>
-              <p className={`text-sm ${muted}`}>{checkedIn ? 'Kamu sudah tercatat hadir hari ini ✓' : 'Tap tombol untuk check-in sekarang'}</p>
+              <p className={`text-sm ${muted}`}>{checkedIn ? 'Kamu sudah tercatat hadir hari ini ✓' : 'Pilih status lalu tap tombol check-in'}</p>
+              {!checkedIn && (
+                <div className="flex gap-3 mt-2">
+                  {(['hadir','wfh','dinas'] as const).map(s=>(
+                    <label key={s} className={`flex items-center gap-1.5 text-xs cursor-pointer ${selStatus===s?text:muted}`}>
+                      <input type="radio" name="att-status" checked={selStatus===s} onChange={()=>setSelStatus(s)} className="accent-blue-500"/>
+                      {s.charAt(0).toUpperCase()+s.slice(1)}
+                    </label>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
-          <button onClick={handleCheckIn} disabled={checkedIn || checkingIn}
+          <button onClick={handleCheckIn} disabled={checkedIn||checkingIn}
             className={`px-6 py-3 rounded-xl text-sm font-semibold text-white flex items-center gap-2 transition-all ${checkedIn?'bg-green-500 opacity-70 cursor-not-allowed':checkingIn?'bg-blue-400 cursor-wait':'bg-gradient-to-r from-blue-600 to-blue-500 shadow-lg shadow-blue-500/30 hover:scale-105 active:scale-95'}`}>
-            <Clock size={15}/>{checkedIn ? 'Sudah Check-in' : checkingIn ? 'Menyimpan...' : 'Check-in Sekarang'}
+            <Clock size={15}/>{checkedIn?'Sudah Check-in':checkingIn?'Menyimpan...':'Check-in Sekarang'}
           </button>
         </div>
         <div className={`grid grid-cols-3 gap-4 mt-5 pt-5 border-t ${dark?'border-[#1e2d4a]':'border-slate-100'}`}>
-          {[
-            {l:'Jam Masuk', v:todayRecord?.checkInTime||'-'},
-            {l:'Jam Keluar', v:todayRecord?.checkOutTime||'-'},
-            {l:'Status', v:todayRecord?.attendance||'—'},
-          ].map(s=>(
+          {[{l:'Jam Masuk',v:todayRecord?.checkInTime||'-'},{l:'Jam Keluar',v:todayRecord?.checkOutTime||'-'},{l:'Status',v:todayRecord?.status||'—'}].map(s=>(
             <div key={s.l} className="text-center"><p className={`text-lg font-bold ${text}`}>{s.v}</p><p className={`text-xs ${muted}`}>{s.l}</p></div>
           ))}
         </div>
       </Card>
-
-      {/* Monthly Summary */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {[
-          {l:'Hadir',v:monthlyCounts['hadir']??0,icon:CheckCircle,color:'from-green-600 to-green-400'},
-          {l:'WFH',v:monthlyCounts['wfh']??0,icon:Activity,color:'from-blue-600 to-blue-400'},
-          {l:'Izin',v:monthlyCounts['izin']??0,icon:AlertCircle,color:'from-yellow-600 to-yellow-400'},
-          {l:'Alpa',v:monthlyCounts['alpa']??0,icon:X,color:'from-red-600 to-red-400'},
-        ].map(s=>(
-          <Card key={s.l} dark={dark} className="p-4 flex items-center gap-3">
-            <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${s.color} flex items-center justify-center shrink-0`}><s.icon size={16} className="text-white"/></div>
-            <div><p className={`text-xl font-bold ${text}`}>{s.v}</p><p className={`text-xs ${muted}`}>{s.l}</p></div>
+        {([['Hadir',summary.hadir,CheckCircle,'from-green-600 to-green-400'],['WFH',summary.wfh,Activity,'from-blue-600 to-blue-400'],['Izin',summary.izin,AlertCircle,'from-yellow-600 to-yellow-400'],['Alpa',summary.alpa,X,'from-red-600 to-red-400']] as const).map(([l,v,Icon,color])=>(
+          <Card key={l} dark={dark} className="p-4 flex items-center gap-3">
+            <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${color} flex items-center justify-center shrink-0`}><Icon size={16} className="text-white"/></div>
+            <div><p className={`text-xl font-bold ${text}`}>{v}</p><p className={`text-xs ${muted}`}>{l}</p></div>
           </Card>
         ))}
       </div>
-
-      {/* Table — real data from Supabase, fallback to mock */}
       <Card dark={dark} className="overflow-hidden">
         <div className={`px-5 py-3 border-b ${dark?'border-[#1e2d4a]':'border-slate-100'}`}>
-          <h3 className={`font-bold ${text}`}>Riwayat {records.length > 0 ? `${records.length} Hari Terakhir` : '5 Hari Terakhir'}</h3>
+          <h3 className={`font-bold ${text}`}>Riwayat {records.length} Hari Terakhir</h3>
         </div>
         <table className="w-full text-sm">
-          <thead>
-            <tr className={`text-xs uppercase tracking-wider ${muted} ${dark?'bg-[#0a1020]':'bg-slate-50'}`}>
-              <th className="px-5 py-3 text-left">Tanggal</th>
-              <th className="px-5 py-3 text-left">Status</th>
-              <th className="px-5 py-3 text-left hidden md:table-cell">Check-in</th>
-              <th className="px-5 py-3 text-left hidden md:table-cell">Check-out</th>
-              <th className="px-5 py-3 text-right hidden lg:table-cell">Leads</th>
-              <th className="px-5 py-3 text-right hidden lg:table-cell">Closing</th>
-            </tr>
-          </thead>
+          <thead><tr className={`text-xs uppercase tracking-wider ${muted} ${dark?'bg-[#0a1020]':'bg-slate-50'}`}>
+            <th className="px-5 py-3 text-left">Tanggal</th><th className="px-5 py-3 text-left">Status</th>
+            <th className="px-5 py-3 text-left hidden md:table-cell">Check-in</th><th className="px-5 py-3 text-left hidden md:table-cell">Check-out</th>
+          </tr></thead>
           <tbody>
-            {(records.length > 0 ? records.slice(0,10) : ATTENDANCE.map(a=>({recordDate:a.date,attendance:a.farhan,checkInTime:a.checkIn,checkOutTime:a.checkOut,leadsIn:0,closing:0}))).map((row,i)=>(
+            {records.slice(0,10).map((row,i)=>(
               <tr key={i} className={`border-t ${dark?'border-[#1e2d4a] hover:bg-[#1a2a4a]':'border-slate-100 hover:bg-blue-50'} transition-colors`}>
-                <td className={`px-5 py-3 text-sm font-medium ${muted}`}>{new Date(row.recordDate).toLocaleDateString('id-ID')}</td>
-                <td className="px-5 py-3">
-                  <span className={`text-xs px-2.5 py-1 rounded-xl font-semibold ${attStatus[row.attendance]?.bg} ${attStatus[row.attendance]?.text}`}>{row.attendance}</span>
-                </td>
+                <td className={`px-5 py-3 text-sm font-medium ${muted}`}>{new Date(row.attendDate).toLocaleDateString('id-ID')}</td>
+                <td className="px-5 py-3"><span className={`text-xs px-2.5 py-1 rounded-xl font-semibold ${attStatus[row.status]?.bg} ${attStatus[row.status]?.text}`}>{row.status}</span></td>
                 <td className={`px-5 py-3 text-sm ${muted} hidden md:table-cell`}>{row.checkInTime||'-'}</td>
                 <td className={`px-5 py-3 text-sm ${muted} hidden md:table-cell`}>{row.checkOutTime||'-'}</td>
-                <td className={`px-5 py-3 text-sm text-right ${muted} hidden lg:table-cell`}>{'leadsIn' in row ? row.leadsIn : '-'}</td>
-                <td className={`px-5 py-3 text-sm text-right font-medium hidden lg:table-cell ${text}`}>{'closing' in row ? row.closing : '-'}</td>
               </tr>
             ))}
+            {records.length===0&&<tr><td colSpan={4} className={`px-5 py-8 text-center text-sm ${muted}`}>Belum ada data attendance</td></tr>}
           </tbody>
         </table>
       </Card>
@@ -1068,89 +1190,88 @@ function AttendanceView({ dark, currentUser }: { dark:boolean; currentUser:User 
   )
 }
 
-// ─── Commission View ──────────────────────────────────────────────────────────
-function CommissionView({ dark }: { dark:boolean }) {
-  const [rate, setRate] = useState(5)
-  const [bonusThreshold, setBonusThreshold] = useState(80)
-  const [bonusAmount, setBonusAmount] = useState(5000000)
+
+// ─── Commission View ────────────────────────────────────────────────────────
+function CommissionView({ dark, currentUser }: { dark:boolean; currentUser:User }) {
+  const isManager = ['owner','deputi','head_manager','manager'].includes(currentUser.role)
+  const { closings, loading, addClosing } = useClosings((['head_manager','deputi','owner'].includes(currentUser.role)) ? undefined : currentUser.id)
+  const { settings } = useCommissionSettings()
+  const [showForm, setShowForm] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [form, setForm] = useState({ studentName:'', parentName:'', childClass:'', uangBangunan:0, dpAmount:0, isDpOnly:false, closingBy:'staff' as 'staff'|'manager_self', notes:'' })
   const text = dark ? 'text-slate-100' : 'text-slate-800'
   const muted = dark ? 'text-slate-400' : 'text-slate-500'
   const inp = dark ? 'bg-[#0a1020] border-[#1e2d4a] text-slate-100' : 'bg-slate-50 border-slate-200 text-slate-800'
-
-  const data = LEADERBOARD.map(l=>{
-    const komisi = l.revenue * (rate/100)
-    const bonus = l.score >= bonusThreshold ? bonusAmount : 0
-    const insentif = l.closing * 200000
-    return { ...l, komisi, bonus, insentif, total:komisi+bonus+insentif }
-  })
-
+  const totalKomisi = closings.reduce((s,c)=>s+(isManager?c.komisiManager:c.komisiStaff),0)
+  const totalRevenue = closings.reduce((s,c)=>s+c.uangBangunan,0)
+  const handleAdd = async () => {
+    if (!form.studentName) return
+    setSaving(true)
+    await addClosing({ ...form, staffId:currentUser.id, managerId:isManager?currentUser.id:undefined, settings })
+    setForm({ studentName:'', parentName:'', childClass:'', uangBangunan:0, dpAmount:0, isDpOnly:false, closingBy:'staff', notes:'' })
+    setShowForm(false); setSaving(false)
+  }
   return (
     <div className="space-y-5">
-      <div><h2 className={`font-bold text-lg ${text}`}>Komisi & Insentif</h2><p className={`text-xs ${muted}`}>Kalkulator otomatis · Mei 2026</p></div>
-
-      {/* Settings */}
-      <Card dark={dark} className="p-5">
-        <h3 className={`font-semibold mb-4 flex items-center gap-2 ${text}`}><CreditCard size={16}/>Konfigurasi Komisi</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-            <label className={`block text-xs font-semibold mb-1.5 ${muted}`}>Komisi Rate (%)</label>
-            <input type="number" value={rate} onChange={e=>setRate(Number(e.target.value))} className={`w-full px-3 py-2 rounded-xl border text-sm outline-none focus:ring-2 focus:ring-blue-500/40 ${inp}`}/>
+      <div className="flex items-center justify-between">
+        <div><h2 className={`font-bold text-lg ${text}`}>Komisi & Insentif</h2><p className={`text-xs ${muted}`}>Kalkulator otomatis · {new Date().toLocaleDateString('id-ID',{month:'long',year:'numeric'})}</p></div>
+        <button onClick={()=>setShowForm(!showForm)} className="px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-500 text-white text-sm font-semibold rounded-xl shadow-lg shadow-blue-500/30 flex items-center gap-2 hover:scale-105 transition-all"><Plus size={15}/>Tambah Closing</button>
+      </div>
+      {showForm && (
+        <Card dark={dark} className="p-5 space-y-3">
+          <h3 className={`font-bold ${text}`}>Input Closing Baru</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div><label className={`text-xs font-semibold ${muted} block mb-1`}>Nama Siswa</label>
+              <input value={form.studentName} onChange={e=>setForm(p=>({...p,studentName:e.target.value}))} className={`w-full px-3 py-2 rounded-xl border text-sm outline-none ${inp}`} placeholder="Nama siswa"/></div>
+            <div><label className={`text-xs font-semibold ${muted} block mb-1`}>Nama Orang Tua</label>
+              <input value={form.parentName} onChange={e=>setForm(p=>({...p,parentName:e.target.value}))} className={`w-full px-3 py-2 rounded-xl border text-sm outline-none ${inp}`} placeholder="Nama orang tua"/></div>
+            <div><label className={`text-xs font-semibold ${muted} block mb-1`}>Uang Bangunan (Rp)</label>
+              <input type="number" value={form.uangBangunan||''} onChange={e=>setForm(p=>({...p,uangBangunan:Number(e.target.value)}))} className={`w-full px-3 py-2 rounded-xl border text-sm outline-none ${inp}`} placeholder={`Default: ${settings.uangBangunanDiskon}`}/></div>
+            <div><label className={`text-xs font-semibold ${muted} block mb-1`}>DP (Rp)</label>
+              <input type="number" value={form.dpAmount||''} onChange={e=>setForm(p=>({...p,dpAmount:Number(e.target.value)}))} className={`w-full px-3 py-2 rounded-xl border text-sm outline-none ${inp}`}/></div>
           </div>
-          <div>
-            <label className={`block text-xs font-semibold mb-1.5 ${muted}`}>Min. Score untuk Bonus</label>
-            <input type="number" value={bonusThreshold} onChange={e=>setBonusThreshold(Number(e.target.value))} className={`w-full px-3 py-2 rounded-xl border text-sm outline-none focus:ring-2 focus:ring-blue-500/40 ${inp}`}/>
+          <div className={`p-3 rounded-xl ${dark?'bg-[#0a1020]':'bg-slate-50'}`}>
+            <p className={`text-xs ${muted} mb-1`}>Estimasi Komisi</p>
+            <p className="font-bold text-green-400">{fmtRp(Math.round((form.uangBangunan||settings.uangBangunanDiskon)*(settings.rateStaffClosing/100)))}</p>
+            <p className={`text-xs ${muted}`}>Rate: {settings.rateStaffClosing}% dari Uang Bangunan</p>
           </div>
-          <div>
-            <label className={`block text-xs font-semibold mb-1.5 ${muted}`}>Nominal Bonus (Rp)</label>
-            <input type="number" value={bonusAmount} onChange={e=>setBonusAmount(Number(e.target.value))} className={`w-full px-3 py-2 rounded-xl border text-sm outline-none focus:ring-2 focus:ring-blue-500/40 ${inp}`}/>
+          <div className="flex gap-2">
+            <button onClick={handleAdd} disabled={saving||!form.studentName} className="px-4 py-2 bg-green-600 text-white text-xs font-semibold rounded-xl hover:bg-green-500 disabled:opacity-50 flex items-center gap-1.5">
+              {saving?<RefreshCw size={12} className="animate-spin"/>:<Check size={12}/>}Simpan</button>
+            <button onClick={()=>setShowForm(false)} className={`px-4 py-2 text-xs font-semibold rounded-xl ${dark?'bg-[#1e2d4a] text-slate-400':'bg-slate-100 text-slate-500'}`}>Batal</button>
           </div>
-        </div>
-      </Card>
-
-      {/* Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {[
-          { l:'Total Komisi', v:fmtRp(data.reduce((a,d)=>a+d.komisi,0)), icon:DollarSign, g:'from-blue-600 to-blue-400' },
-          { l:'Total Bonus', v:fmtRp(data.reduce((a,d)=>a+d.bonus,0)), icon:Gift, g:'from-green-600 to-green-400' },
-          { l:'Total Insentif', v:fmtRp(data.reduce((a,d)=>a+d.insentif,0)), icon:Award, g:'from-purple-600 to-purple-400' },
-          { l:'Grand Total', v:fmtRp(data.reduce((a,d)=>a+d.total,0)), icon:TrendingUp, g:'from-orange-600 to-orange-400' },
-        ].map(s=>(
+        </Card>
+      )}
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+        {[{l:'Total Closing',v:closings.length,icon:Award,g:'from-purple-600 to-purple-400'},{l:'Total Revenue',v:fmtRp(totalRevenue),icon:TrendingUp,g:'from-blue-600 to-blue-400'},{l:'Total Komisi',v:fmtRp(totalKomisi),icon:DollarSign,g:'from-green-600 to-green-400'}].map(s=>(
           <Card key={s.l} dark={dark} className="p-4 flex items-center gap-3">
             <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${s.g} flex items-center justify-center shrink-0`}><s.icon size={16} className="text-white"/></div>
             <div><p className={`text-base font-bold ${text}`}>{s.v}</p><p className={`text-xs ${muted}`}>{s.l}</p></div>
           </Card>
         ))}
       </div>
-
-      {/* Table */}
       <Card dark={dark} className="overflow-hidden">
-        <div className={`px-5 py-3 border-b flex items-center justify-between ${dark?'border-[#1e2d4a]':'border-slate-100'}`}>
-          <h3 className={`font-bold ${text}`}>Detail Kalkulasi per Staff</h3>
-          <button className="px-3 py-1.5 bg-green-600 text-white text-xs font-semibold rounded-xl flex items-center gap-1.5 hover:bg-green-500 transition-colors"><Download size={12}/>Export Excel</button>
-        </div>
+        <div className={`px-5 py-3 border-b ${dark?'border-[#1e2d4a]':'border-slate-100'}`}><h3 className={`font-bold ${text}`}>Riwayat Closing</h3></div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead>
-              <tr className={`text-xs uppercase tracking-wider ${muted} ${dark?'bg-[#0a1020]':'bg-slate-50'}`}>
-                <th className="px-5 py-3 text-left">Staff</th>
-                <th className="px-5 py-3 text-right">Revenue</th>
-                <th className="px-5 py-3 text-right">Komisi</th>
-                <th className="px-5 py-3 text-right">Bonus</th>
-                <th className="px-5 py-3 text-right">Insentif</th>
-                <th className="px-5 py-3 text-right">Total</th>
-              </tr>
-            </thead>
+            <thead><tr className={`text-xs uppercase tracking-wider ${muted} ${dark?'bg-[#0a1020]':'bg-slate-50'}`}>
+              <th className="px-5 py-3 text-left">Siswa</th>
+              <th className="px-5 py-3 text-left hidden md:table-cell">Orang Tua</th>
+              <th className="px-5 py-3 text-right">Uang Bangunan</th>
+              <th className="px-5 py-3 text-right">Komisi</th>
+              <th className="px-5 py-3 text-left hidden md:table-cell">Tanggal</th>
+            </tr></thead>
             <tbody>
-              {data.map(d=>(
-                <tr key={d.rank} className={`border-t ${dark?'border-[#1e2d4a] hover:bg-[#1a2a4a]':'border-slate-100 hover:bg-blue-50'} transition-colors`}>
-                  <td className="px-5 py-3"><div className="flex items-center gap-2"><div className="w-7 h-7 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold text-xs">{d.avatar}</div><span className={`font-medium ${text}`}>{d.name}</span></div></td>
-                  <td className={`px-5 py-3 text-right ${muted}`}>{fmtRp(d.revenue)}</td>
-                  <td className="px-5 py-3 text-right text-blue-400 font-medium">{fmtRp(d.komisi)}</td>
-                  <td className={`px-5 py-3 text-right font-medium ${d.bonus>0?'text-green-400':muted}`}>{d.bonus>0?fmtRp(d.bonus):'-'}</td>
-                  <td className="px-5 py-3 text-right text-purple-400 font-medium">{fmtRp(d.insentif)}</td>
-                  <td className={`px-5 py-3 text-right font-bold ${text}`}>{fmtRp(d.total)}</td>
+              {closings.map(c=>(
+                <tr key={c.id} className={`border-t ${dark?'border-[#1e2d4a] hover:bg-[#1a2a4a]':'border-slate-100 hover:bg-blue-50'} transition-colors`}>
+                  <td className={`px-5 py-3 font-medium ${text}`}>{c.studentName}</td>
+                  <td className={`px-5 py-3 ${muted} hidden md:table-cell`}>{c.parentName}</td>
+                  <td className={`px-5 py-3 text-right ${muted}`}>{fmtRp(c.uangBangunan)}</td>
+                  <td className="px-5 py-3 text-right text-green-400 font-medium">{fmtRp(isManager?c.komisiManager:c.komisiStaff)}</td>
+                  <td className={`px-5 py-3 ${muted} hidden md:table-cell`}>{new Date(c.closingDate).toLocaleDateString('id-ID')}</td>
                 </tr>
               ))}
+              {closings.length===0&&<tr><td colSpan={5} className={`px-5 py-8 text-center text-sm ${muted}`}>Belum ada data closing. Tambah closing pertama!</td></tr>}
             </tbody>
           </table>
         </div>
@@ -1158,6 +1279,7 @@ function CommissionView({ dark }: { dark:boolean }) {
     </div>
   )
 }
+
 
 // ─── Reports View ─────────────────────────────────────────────────────────────
 function ReportsView({ dark }: { dark:boolean }) {
@@ -1238,95 +1360,158 @@ function LoginScreen({ onLogin }: { onLogin:(u:User)=>void }) {
   const [pass, setPass] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [tab, setTab] = useState<'password'|'magic'>('password')
 
   const handle = async () => {
+    if (!email || !pass) { setError('Isi email dan password terlebih dahulu'); return }
     setLoading(true); setError('')
-    await new Promise(r=>setTimeout(r,900))
-    const found = USERS.find(u=>u.email===email)
-    if (found && pass==='admin123') { onLogin(found) }
-    else { setError('Email atau password salah. Coba: reynaldi@alex.id / admin123'); setLoading(false) }
+    const supabase = createClient()
+    const { error: authErr } = await supabase.auth.signInWithPassword({ email, password: pass })
+    if (authErr) { setError('Email atau password salah'); setLoading(false); return }
+
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session?.user) { setError('Gagal mendapatkan sesi. Coba lagi.'); setLoading(false); return }
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', session.user.id)
+      .single()
+
+    const p = profile as Record<string,unknown> | null
+    const u: User = {
+      id: session.user.id,
+      name: (p?.full_name as string) ?? session.user.email?.split('@')[0] ?? 'User',
+      role: (p?.role as Role) ?? 'staff',
+      team: (p?.team as string) ?? 'All',
+      avatar: ((p?.full_name as string)?.charAt(0) ?? 'U').toUpperCase(),
+      email: session.user.email ?? '',
+      online: true,
+      revenue: 0, leads: 0, closing: 0, score: 0,
+    }
+    onLogin(u)
   }
+
+  const ROLE_HINTS = [
+    { role:'owner',        label:'Pemilik',      color:'text-yellow-400', email:'pa.idris@alexandria.sch.id' },
+    { role:'deputi',       label:'Deputi',        color:'text-purple-400', email:'deputi@alexandria.sch.id' },
+    { role:'head_manager', label:'Head Manager',  color:'text-red-400',    email:'erwin@alexandria.sch.id' },
+    { role:'manager',      label:'Manager',       color:'text-orange-400', email:'manager.a@alexandria.sch.id' },
+    { role:'staff',        label:'Staff',         color:'text-blue-400',   email:'staff.a1@alexandria.sch.id' },
+  ]
 
   return (
     <div className="min-h-screen bg-[#070d1a] flex items-center justify-center p-4 relative overflow-hidden">
-      <motion.div animate={{ scale:[1,1.1,1], opacity:[0.15,0.25,0.15] }} transition={{ repeat:Infinity, duration:8 }} className="absolute -top-60 -left-60 w-[500px] h-[500px] bg-blue-600 rounded-full blur-[120px]"/>
-      <motion.div animate={{ scale:[1,1.15,1], opacity:[0.1,0.2,0.1] }} transition={{ repeat:Infinity, duration:10, delay:2 }} className="absolute -bottom-60 -right-60 w-[500px] h-[500px] bg-purple-600 rounded-full blur-[120px]"/>
+      {/* Background glows */}
+      <motion.div animate={{ scale:[1,1.1,1], opacity:[0.15,0.25,0.15] }} transition={{ repeat:Infinity, duration:8 }}
+        className="absolute -top-60 -left-60 w-[500px] h-[500px] bg-blue-600 rounded-full blur-[120px]"/>
+      <motion.div animate={{ scale:[1,1.15,1], opacity:[0.1,0.2,0.1] }} transition={{ repeat:Infinity, duration:10, delay:2 }}
+        className="absolute -bottom-60 -right-60 w-[500px] h-[500px] bg-purple-600 rounded-full blur-[120px]"/>
+      {/* Decorative dots grid */}
+      <div className="absolute inset-0 opacity-[0.03]" style={{backgroundImage:'radial-gradient(circle, #fff 1px, transparent 1px)',backgroundSize:'32px 32px'}}/>
 
       <motion.div initial={{ opacity:0, y:20 }} animate={{ opacity:1, y:0 }} className="relative w-full max-w-md">
-        <div className="text-center mb-8">
-          <motion.div whileHover={{ rotate:5, scale:1.05 }} className="w-20 h-20 rounded-full overflow-hidden mx-auto mb-4 shadow-2xl shadow-blue-500/40 cursor-pointer border-2 border-white/10">
-            <img src="/logo-alexandria.jpeg" alt="Alexandria" className="w-full h-full object-cover"/>
-          </motion.div>
-          <h1 className="text-2xl font-bold text-white">Alexandria Dashboard</h1>
-          <p className="text-slate-400 text-sm mt-1">Marketing Performance System</p>
-        </div>
 
-        <div className="bg-[#111d35] border border-[#1e2d4a] rounded-2xl p-7 shadow-2xl backdrop-blur">
-          <div className="flex mb-5 p-1 bg-[#0a1020] rounded-xl">
-            {(['password','magic'] as const).map(t=>(
-              <button key={t} onClick={()=>setTab(t)} className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all ${tab===t?'bg-blue-600 text-white shadow-md':'text-slate-400 hover:text-slate-200'}`}>
-                {t==='password'?'🔐 Password':'✨ Magic Link'}
-              </button>
-            ))}
+        {/* ── TANDA MATA (School Badge) ── */}
+        <div className="text-center mb-6">
+          <div className="relative inline-block">
+            {/* Outer ring - Islamic geometric */}
+            <motion.div
+              animate={{ rotate: 360 }}
+              transition={{ repeat: Infinity, duration: 30, ease: 'linear' }}
+              className="absolute inset-0 rounded-full border-2 border-dashed border-blue-500/20"
+              style={{ margin: '-12px' }}
+            />
+            <motion.div
+              animate={{ rotate: -360 }}
+              transition={{ repeat: Infinity, duration: 20, ease: 'linear' }}
+              className="absolute inset-0 rounded-full border border-dashed border-purple-500/20"
+              style={{ margin: '-6px' }}
+            />
+            {/* Logo */}
+            <motion.div
+              whileHover={{ scale: 1.05 }}
+              className="relative w-20 h-20 rounded-full overflow-hidden mx-auto shadow-2xl shadow-blue-500/40 border-2 border-white/10"
+            >
+              <img src="/logo-alexandria.jpeg" alt="Alexandria" className="w-full h-full object-cover"/>
+              {/* Verified badge */}
+              <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center border-2 border-[#070d1a]">
+                <BadgeCheck size={12} className="text-white"/>
+              </div>
+            </motion.div>
           </div>
 
+          <div className="mt-4">
+            <h1 className="text-2xl font-bold text-white tracking-tight">Alexandria Dashboard</h1>
+            <div className="flex items-center justify-center gap-2 mt-1">
+              <div className="h-px w-12 bg-gradient-to-r from-transparent to-blue-500/60"/>
+              <p className="text-slate-400 text-xs font-medium uppercase tracking-widest">Marketing System</p>
+              <div className="h-px w-12 bg-gradient-to-l from-transparent to-blue-500/60"/>
+            </div>
+            {/* School name badge */}
+            <div className="inline-flex items-center gap-1.5 mt-2 px-3 py-1 bg-blue-600/10 border border-blue-500/20 rounded-full">
+              <GraduationCap size={11} className="text-blue-400"/>
+              <span className="text-[10px] font-semibold text-blue-300 tracking-wide">Alexandria Islamic School</span>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Login Card ── */}
+        <div className="bg-[#111d35] border border-[#1e2d4a] rounded-2xl p-7 shadow-2xl backdrop-blur">
           <AnimatePresence mode="wait">
-            {error && <motion.div initial={{opacity:0,y:-8}} animate={{opacity:1,y:0}} exit={{opacity:0}} className="mb-4 px-4 py-3 bg-red-500/15 border border-red-500/30 rounded-xl text-red-400 text-xs flex items-center gap-2"><AlertCircle size={14}/>{error}</motion.div>}
+            {error && (
+              <motion.div initial={{opacity:0,y:-8}} animate={{opacity:1,y:0}} exit={{opacity:0}}
+                className="mb-4 px-4 py-3 bg-red-500/15 border border-red-500/30 rounded-xl text-red-400 text-xs flex items-center gap-2">
+                <AlertCircle size={14}/>{error}
+              </motion.div>
+            )}
           </AnimatePresence>
 
-          {tab==='password' ? (
-            <div className="space-y-4">
-              {[['Email','email',email,setEmail],['Password','password',pass,setPass]].map(([lbl,type,val,setter])=>(
-                <div key={String(lbl)}>
-                  <label className="block text-xs font-semibold text-slate-400 mb-1.5">{String(lbl)}</label>
-                  <input type={String(type)} value={String(val)} onChange={e=>(setter as any)(e.target.value)} onKeyDown={e=>e.key==='Enter'&&handle()} placeholder={lbl==='Email'?'reynaldi@alex.id':'••••••••'} className="w-full px-4 py-3 bg-[#0a1020] border border-[#1e2d4a] rounded-xl text-white placeholder-slate-600 text-sm outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"/>
-                </div>
-              ))}
-              <button onClick={handle} disabled={loading} className="w-full py-3 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white font-semibold rounded-xl shadow-lg shadow-blue-500/30 transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-60 flex items-center justify-center gap-2">
-                {loading?<><RefreshCw size={15} className="animate-spin"/>Masuk...</>:<><Zap size={15}/>Masuk Sekarang</>}
-              </button>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-xs font-semibold text-slate-400 mb-1.5">Email</label>
+              <input type="email" value={email} onChange={e=>setEmail(e.target.value)} onKeyDown={e=>e.key==='Enter'&&handle()}
+                placeholder="email@alexandria.sch.id"
+                className="w-full px-4 py-3 bg-[#0a1020] border border-[#1e2d4a] rounded-xl text-white placeholder-slate-600 text-sm outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"/>
             </div>
-          ) : (
-            <div className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-400 mb-1.5">Email</label>
-                <input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="masukkan email kamu" className="w-full px-4 py-3 bg-[#0a1020] border border-[#1e2d4a] rounded-xl text-white placeholder-slate-600 text-sm outline-none focus:ring-2 focus:ring-blue-500/50"/>
-              </div>
-              <button onClick={()=>{if(!email){setError("Masukkan email terlebih dahulu");return};setError("Fitur Magic Link belum aktif. Gunakan tab Password.")}} className="w-full py-3 bg-gradient-to-r from-purple-600 to-purple-500 text-white font-semibold rounded-xl shadow-lg shadow-purple-500/30 hover:scale-[1.02] transition-all flex items-center justify-center gap-2">
-                <Zap size={15}/>Kirim Magic Link
-              </button>
-              <p className="text-xs text-slate-500 text-center">Link masuk akan dikirim ke email kamu</p>
+            <div>
+              <label className="block text-xs font-semibold text-slate-400 mb-1.5">Password</label>
+              <input type="password" value={pass} onChange={e=>setPass(e.target.value)} onKeyDown={e=>e.key==='Enter'&&handle()}
+                placeholder="••••••••"
+                className="w-full px-4 py-3 bg-[#0a1020] border border-[#1e2d4a] rounded-xl text-white placeholder-slate-600 text-sm outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"/>
             </div>
-          )}
+            <button onClick={handle} disabled={loading}
+              className="w-full py-3 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white font-semibold rounded-xl shadow-lg shadow-blue-500/30 transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-60 flex items-center justify-center gap-2">
+              {loading ? <><RefreshCw size={15} className="animate-spin"/>Masuk...</> : <><Zap size={15}/>Masuk Sekarang</>}
+            </button>
+          </div>
 
-          <div className="mt-5 pt-5 border-t border-[#1e2d4a]">
-            <p className="text-xs text-slate-500 text-center mb-3">Demo cepat — klik untuk isi otomatis:</p>
-            <div className="grid grid-cols-2 gap-2">
-              {[
-                { n:'Reynaldi (SuperAdmin)', e:'reynaldi@alex.id' },
-                { n:'Mr. Farhan (Staff)', e:'farhan@alex.id' },
-              ].map(a=>(
-                <button key={a.e} onClick={()=>{setEmail(a.e);setPass('admin123');setTab('password')}} className="px-3 py-2 text-xs bg-[#0a1020] border border-[#1e2d4a] rounded-xl text-slate-400 hover:text-slate-200 hover:border-blue-500/50 transition-all text-left">
-                  {a.n}
-                </button>
+          {/* Role Legend */}
+          <div className={`mt-5 pt-4 border-t border-[#1e2d4a]`}>
+            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2.5 text-center">Akses Berdasarkan Role</p>
+            <div className="flex flex-wrap gap-1.5 justify-center">
+              {ROLE_HINTS.map(h=>(
+                <span key={h.role} className={`text-[10px] px-2 py-0.5 rounded-full bg-white/5 border border-white/10 ${h.color} font-medium`}>
+                  {h.label}
+                </span>
               ))}
             </div>
           </div>
         </div>
 
-        {/* Copyright Footer */}
-        <div className="mt-6 flex items-center justify-center gap-3">
-          <img src="/reynaldi.jpeg" alt="Reynaldi Candra" className="w-9 h-9 rounded-full object-cover object-top border-2 border-white/20 shadow-lg"/>
+        {/* ── Developer Credit ── */}
+        <div className="mt-5 flex items-center justify-center gap-3">
+          <img src="/reynaldi.jpeg" alt="Reynaldi" className="w-9 h-9 rounded-full object-cover object-top border-2 border-white/20 shadow-lg"/>
           <div>
             <p className="text-slate-400 text-xs font-semibold">Reynaldi Candra Webdev</p>
-            <p className="text-slate-600 text-[10px]">&copy; 2026 All rights reserved</p>
+            <p className="text-slate-600 text-[10px]">&copy; 2026 Alexandria Islamic School</p>
           </div>
         </div>
+
       </motion.div>
     </div>
   )
 }
+
 
 // ─── Leads View ───────────────────────────────────────────────────────────────
 const PIPELINE: { status:LeadStatus; label:string; color:string; bg:string; dot:string }[] = [
@@ -1387,7 +1572,8 @@ function StarRating({ value, onChange, dark }: { value:number; onChange?:(v:numb
 }
 
 function LeadsView({ dark, currentUser }: { dark:boolean; currentUser:User }) {
-  const { leads: dbLeads, loading, createLead, updateLead, deleteLead } = useLeads()
+  const isManager = ['owner','deputi','head_manager','manager'].includes(currentUser.role)
+  const { leads: dbLeads, loading, createLead, updateLead, deleteLead } = useLeads((['head_manager','deputi','owner'].includes(currentUser.role)) ? undefined : currentUser.id)
   const [filterCategory, setFilterCategory] = useState<'all'|'HOT'|'COLD'|'WARM'|'FREEZE'>('all')
   const [filterStaff, setFilterStaff] = useState('all')
   const [search, setSearch] = useState('')
@@ -2017,16 +2203,16 @@ function LeadsView({ dark, currentUser }: { dark:boolean; currentUser:User }) {
 // ─── Main App ─────────────────────────────────────────────────────────────────
 
 const NAV: { icon:React.ComponentType<{size?:number;className?:string}>; label:string; view:View; roles:Role[]; badge?:number }[] = [
-  { icon:LayoutDashboard, label:'Dashboard',  view:'dashboard',   roles:['superadmin','manager','leader','staff'] },
-  { icon:Inbox,           label:'Leads',      view:'leads',       roles:['superadmin','manager','leader','staff'], badge:3 },
-  { icon:BarChart3,       label:'Performa',   view:'performance', roles:['superadmin','manager','leader','staff'] },
-  { icon:Users,           label:'Tim',        view:'team',        roles:['superadmin','manager','leader'] },
-  { icon:Megaphone,       label:'Campaign',   view:'campaigns',   roles:['superadmin','manager','leader'] },
-  { icon:FileText,        label:'Reports',    view:'reports',     roles:['superadmin','manager'] },
-  { icon:Target,          label:'OKR Goals',  view:'goals',       roles:['superadmin','manager','leader'] },
-  { icon:Calendar,        label:'Attendance', view:'attendance',  roles:['superadmin','manager','leader','staff'] },
-  { icon:CreditCard,      label:'Komisi',     view:'commission',  roles:['superadmin','manager'] },
-  { icon:Settings,        label:'Settings',   view:'settings',    roles:['superadmin'] },
+  { icon:LayoutDashboard, label:'Dashboard',  view:'dashboard',   roles:['owner','deputi','head_manager','manager','staff'] },
+  { icon:Inbox,           label:'Leads',      view:'leads',       roles:['head_manager','manager','staff'], badge:3 },
+  { icon:BarChart3,       label:'Performa',   view:'performance', roles:['owner','deputi','head_manager','manager','staff'] },
+  { icon:Users,           label:'Tim',        view:'team',        roles:['owner','deputi','head_manager','manager'] },
+  { icon:Megaphone,       label:'Campaign',   view:'campaigns',   roles:['deputi','head_manager','manager'] },
+  { icon:FileText,        label:'Reports',    view:'reports',     roles:['owner','deputi','head_manager'] },
+  { icon:Target,          label:'OKR Goals',  view:'goals',       roles:['deputi','head_manager','manager'] },
+  { icon:Calendar,        label:'Attendance', view:'attendance',  roles:['head_manager','manager','staff'] },
+  { icon:CreditCard,      label:'Komisi',     view:'commission',  roles:['head_manager','manager','staff'] },
+  { icon:Settings,        label:'Settings',   view:'settings',    roles:['owner','deputi','head_manager'] },
 ]
 
 const viewTitle: Record<View,string> = {
@@ -2174,7 +2360,7 @@ export default function AlexandriaDashboard() {
               {!collapsed && (
                 <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="min-w-0 flex-1">
                   <p className={`text-xs font-semibold truncate ${text}`}>{user.name}</p>
-                  <p className={`text-[10px] ${muted} capitalize`}>{user.role}</p>
+                  <p className={`text-[10px] ${muted}`}>{ROLE_CONFIG[user.role]?.label ?? user.role}</p>
                 </motion.div>
               )}
             </AnimatePresence>
@@ -2287,12 +2473,12 @@ export default function AlexandriaDashboard() {
               {view==='dashboard' && <DashboardView dark={d}/>}
               {view==='leads' && <LeadsView dark={d} currentUser={user}/>}
               {view==='performance' && <PerformanceView dark={d} currentUser={user}/>}
-              {view==='team' && <TeamView dark={d}/>}
+              {view==='team' && <TeamView dark={d} currentUser={user}/>}
               {view==='campaigns' && <CampaignsView dark={d}/>}
               {view==='reports' && <ReportsView dark={d}/>}
               {view==='goals' && <GoalsView dark={d}/>}
               {view==='attendance' && <AttendanceView dark={d} currentUser={user}/>}
-              {view==='commission' && <CommissionView dark={d}/>}
+              {view==='commission' && <CommissionView dark={d} currentUser={user}/>}
               {view==='settings' && (
                 <Card dark={d} className="p-8 text-center">
                   <Settings size={48} className={`mx-auto mb-3 ${muted}`}/>
