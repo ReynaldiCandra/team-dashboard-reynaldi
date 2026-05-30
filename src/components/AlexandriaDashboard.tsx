@@ -32,6 +32,8 @@ import { useAttendance } from '@/hooks/use-attendance'
 import { useClosings, useCommissionSettings } from '@/hooks/use-commission'
 import { useTeams } from '@/hooks/use-team'
 import { usePresence } from '@/hooks/use-presence'
+import { useActivityLogs } from '@/hooks/use-activity'
+import { useLeaderboard } from '@/hooks/use-leaderboard'
 import { createClient } from '@/lib/supabase/client'
 import type { Lead as DBLead, LeadCategory } from '@/hooks/use-leads'
 import { useNotifications } from '@/hooks/use-notifications'
@@ -167,14 +169,7 @@ const CAMPAIGNS = [
   { id:'4', name:'Summer Special', status:'Paused', leads:43, closing:11, revenue:54000000, staff:['Mr. Ramram'], start:'2026-06-15', end:'2026-07-31', budget:20000000 },
 ]
 
-const LEADERBOARD = [
-  { rank:1, name:'Mr. Farhan', team:'Alpha', revenue:92000000, leads:78, closing:21, score:87, trend:'up', avatar:'F' },
-  { rank:2, name:'Mr. Ramram', team:'Beta', revenue:73000000, leads:61, closing:17, score:74, trend:'up', avatar:'M' },
-  { rank:3, name:'Dian Pratiwi', team:'Alpha', revenue:58000000, leads:52, closing:13, score:68, trend:'down', avatar:'D' },
-  { rank:4, name:'Agus Salim', team:'Beta', revenue:45000000, leads:41, closing:10, score:61, trend:'up', avatar:'A' },
-  { rank:5, name:'Wulan Sari', team:'Gamma', revenue:38000000, leads:35, closing:8, score:54, trend:'down', avatar:'W' },
-]
-
+const LEADERBOARD: never[] = []
 const PERF_METRICS = [
   { key:'leads', label:'Leads Masuk', icon:Users, target:30, achieved:24, color:'blue' },
   { key:'prospect', label:'Prospect', icon:Target, target:20, achieved:18, color:'purple' },
@@ -328,11 +323,14 @@ function MotivationalBanner({ dark: _dark }: { dark:boolean }) {
 }
 
 // ─── Dashboard View ───────────────────────────────────────────────────────────
-function DashboardView({ dark }: { dark:boolean }) {
+function DashboardView({ dark, currentUser }: { dark:boolean; currentUser:User }) {
   const [aiSummary, setAiSummary] = useState(false)
   const [generating, setGenerating] = useState(false)
   const [summaryText, setSummaryText] = useState('')
   const { stats, changes, loading: kpiLoading } = useKpiStats()
+  const isHeadRole = ['head_manager','deputi','owner'].includes(currentUser?.role ?? '')
+  const { data: leaderboard } = useLeaderboard(isHeadRole ? undefined : currentUser?.team)
+  const { logs: activityLogs } = useActivityLogs(isHeadRole ? undefined : currentUser?.team)
   const card = dark ? 'bg-[#111d35] border-[#1e2d4a]' : 'bg-white border-slate-200'
   const text = dark ? 'text-slate-100' : 'text-slate-800'
   const muted = dark ? 'text-slate-400' : 'text-slate-500'
@@ -478,7 +476,7 @@ function DashboardView({ dark }: { dark:boolean }) {
             </div>
           </div>
           <div className="space-y-2.5">
-            {LEADERBOARD.map(l => (
+            {leaderboard.map(l => (
               <motion.div key={l.rank} whileHover={{ x:4 }} className={`flex items-center gap-2.5 p-2 rounded-xl cursor-default ${dark ? 'hover:bg-[#1e2d4a]' : 'hover:bg-slate-50'} transition-colors`}>
                 <div className={`w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-bold shrink-0 ${l.rank===1?'bg-yellow-500 text-white':l.rank===2?'bg-slate-400 text-white':l.rank===3?'bg-orange-500 text-white':dark?'bg-[#1e2d4a] text-slate-400':'bg-slate-100 text-slate-500'}`}>{l.rank}</div>
                 <div className="w-7 h-7 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold text-xs shrink-0">{l.avatar}</div>
@@ -488,8 +486,8 @@ function DashboardView({ dark }: { dark:boolean }) {
                 </div>
                 <div className="text-right shrink-0">
                   <p className={`text-xs font-bold ${text}`}>{fmtRp(l.revenue)}</p>
-                  <p className={`text-xs ${l.trend==='up'?'text-green-400':'text-red-400'} flex items-center justify-end gap-0.5`}>
-                    {l.trend==='up'?<ArrowUpRight size={10}/>:<ArrowDownRight size={10}/>}{l.score}
+                  <p className={'text-xs text-green-400 flex items-center justify-end gap-0.5'}>
+                    {l.score > 0 ? <ArrowUpRight size={10}/> : <ArrowDownRight size={10}/>}{l.score}
                   </p>
                 </div>
               </motion.div>
@@ -536,19 +534,15 @@ function DashboardView({ dark }: { dark:boolean }) {
         <Card dark={dark} className="p-5">
           <h3 className={`font-bold mb-4 ${text}`}>Activity Log Terbaru</h3>
           <div className="space-y-3">
-            {[
-              { time:'10:23', user:'Mr. Farhan', action:'Menambah 3 leads baru', type:'success' },
-              { time:'09:47', user:'Mr. Ramram', action:'Closing deal Rp 12jt', type:'success' },
-              { time:'09:15', user:'Siti Leader', action:'Update campaign status', type:'info' },
-              { time:'08:50', user:'Mr. Farhan', action:'Follow-up Hendra Wijaya', type:'info' },
-              { time:'08:30', user:'Budi Manager', action:'Approve target bulanan Tim Alpha', type:'warning' },
-            ].map((a, i) => (
+            {activityLogs.length === 0 ? (
+              <div className={"text-center py-6 text-xs " + muted}>Belum ada aktivitas</div>
+            ) : activityLogs.map((a, i) => (
               <div key={i} className="flex items-start gap-3">
-                <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${a.type==='success'?'bg-green-400':a.type==='warning'?'bg-yellow-400':'bg-blue-400'}`} />
+                <div className="w-2 h-2 rounded-full mt-1.5 shrink-0 bg-blue-400" />
                 <div className="flex-1 min-w-0">
-                  <p className={`text-xs ${text}`}><span className="font-semibold">{a.user}</span> — {a.action}</p>
+                  <p className={"text-xs " + text}><span className="font-semibold">{a.userName}</span> — {a.action}</p>
                 </div>
-                <span className={`text-xs ${muted} shrink-0`}>{a.time}</span>
+                <span className={"text-xs " + muted + " shrink-0"}>{new Date(a.createdAt).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'})}</span>
               </div>
             ))}
           </div>
@@ -559,10 +553,10 @@ function DashboardView({ dark }: { dark:boolean }) {
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         {[
           { label:'Leads Hari Ini', value:'12', icon:Users, color:'from-blue-600 to-blue-400' },
-          { label:'Follow-up', value:'8', icon:RefreshCw, color:'from-purple-600 to-purple-400' },
-          { label:'Closing', value:'3', icon:CheckCircle, color:'from-green-600 to-green-400' },
-          { label:'Revenue Hari Ini', value:'Rp 28jt', icon:DollarSign, color:'from-orange-600 to-orange-400' },
-          { label:'Staff Online', value:'3/5', icon:Activity, color:'from-emerald-600 to-emerald-400' },
+          { label:'Total Leads', value: stats ? String(stats.totalLeads ?? 0) : '...', icon:RefreshCw, color:'from-purple-600 to-purple-400' },
+          { label:'Closing', value: stats ? String(stats.closingThisMonth ?? 0) : '...', icon:CheckCircle, color:'from-green-600 to-green-400' },
+          { label:'Revenue', value: stats ? fmtRevenue(stats.revenueThisMonth ?? 0) : '...', icon:DollarSign, color:'from-orange-600 to-orange-400' },
+          { label:'Top Performer', value: leaderboard[0]?.name?.split(' ')[0] ?? '-', icon:Activity, color:'from-emerald-600 to-emerald-400' },
         ].map(s => (
           <motion.div key={s.label} whileHover={{ y:-3 }} transition={{ type:'spring', stiffness:300 }}
             className={`${dark ? 'bg-[#111d35] border-[#1e2d4a]' : 'bg-white border-slate-200'} border rounded-2xl p-4 flex items-center gap-3 shadow-sm hover:shadow-lg transition-shadow cursor-default`}>
@@ -1630,7 +1624,7 @@ function LeadsView({ dark, currentUser }: { dark:boolean; currentUser:User }) {
       childName: form.childName, childGender: form.childGender, childClass: form.childClass, hasSibling: form.hasSibling,
       source: form.source, assignedStaffName: form.assignedStaffName,
       leadCategory: form.leadCategory, interestRating: form.interestRating, notes: form.notes,
-      status: 'new', handlerName: currentUser.name, handlerRole: currentUser.role,
+      status: 'new', handlerName: currentUser.name, handlerRole: currentUser.role, team: currentUser.team, assignedTo: currentUser.id,
     })
     setSaving(false)
     if (error) { showToast('❌ Gagal menyimpan: ' + error.message); return }
@@ -2477,7 +2471,7 @@ export default function AlexandriaDashboard() {
         <main className="flex-1 overflow-y-auto p-4 md:p-5 pb-28 lg:pb-5">
           <AnimatePresence mode="wait">
             <motion.div key={view} initial={{opacity:0,y:8}} animate={{opacity:1,y:0}} exit={{opacity:0,y:-8}} transition={{duration:0.2}}>
-              {view==='dashboard' && <DashboardView dark={d}/>}
+              {view==='dashboard' && <DashboardView dark={d} currentUser={user}/>}
               {view==='leads' && <LeadsView dark={d} currentUser={user}/>}
               {view==='performance' && <PerformanceView dark={d} currentUser={user}/>}
               {view==='team' && <TeamView dark={d} currentUser={user} isOnline={isOnline}/>}
