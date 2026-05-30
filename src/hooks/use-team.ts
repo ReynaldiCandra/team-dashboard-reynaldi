@@ -17,65 +17,53 @@ export interface TeamMember {
   score: number
 }
 
-function mapRow(r: Record<string, unknown>): TeamMember {
-  return {
-    id: r.id as string,
-    name: r.name as string,
-    role: (r.role as string) ?? 'staff',
-    team: (r.team as string) ?? 'All',
-    avatar: (r.avatar as string) || ((r.name as string)?.charAt(0) ?? 'U'),
-    email: (r.email as string) ?? '',
-    online: (r.online as boolean) ?? false,
-    revenue: (r.revenue as number) ?? 0,
-    leads: (r.leads as number) ?? 0,
-    closing: (r.closing as number) ?? 0,
-    score: (r.score as number) ?? 0,
-  }
-}
-
-export function useTeams() {
+export function useTeams(filterTeam?: string) {
   const [members, setMembers] = useState<TeamMember[]>([])
   const [loading, setLoading] = useState(true)
 
   const fetchMembers = useCallback(async () => {
     setLoading(true)
-    const { data, error } = await supabase
-      .from('team_members')
-      .select('*')
-      .order('created_at', { ascending: true })
-    if (error) console.error('fetchTeams error:', error.message)
-    setMembers((data ?? []).map(r => mapRow(r as Record<string, unknown>)))
+    let q = supabase.from('profiles').select('id, full_name, role, team, email')
+    if (filterTeam) q = q.eq('team', filterTeam)
+
+    const { data: profiles, error } = await q
+    if (error) { console.error('fetchTeams error:', error.message); setLoading(false); return }
+
+    const enriched: TeamMember[] = []
+    for (const p of profiles ?? []) {
+      const { count: leadsCount } = await supabase
+        .from('leads').select('*', { count: 'exact', head: true })
+        .eq('assigned_to', p.id)
+
+      const { data: perfs } = await supabase
+        .from('performances').select('closing, revenue')
+        .eq('staff_id', p.id)
+
+      const closing = (perfs ?? []).reduce((s: number, r: Record<string,number>) => s + (r.closing ?? 0), 0)
+      const revenue = (perfs ?? []).reduce((s: number, r: Record<string,number>) => s + (r.revenue ?? 0), 0)
+      const leads = leadsCount ?? 0
+      const score = Math.min(100, Math.round(leads * 0.3 + closing * 5 + revenue / 10000000))
+
+      enriched.push({
+        id: p.id,
+        name: p.full_name ?? 'Unknown',
+        role: p.role ?? 'staff',
+        team: p.team ?? '',
+        avatar: (p.full_name ?? 'U').charAt(0).toUpperCase(),
+        email: p.email ?? '',
+        online: false,
+        revenue,
+        leads,
+        closing,
+        score,
+      })
+    }
+
+    setMembers(enriched)
     setLoading(false)
-  }, [])
+  }, [filterTeam])
 
   useEffect(() => { fetchMembers() }, [fetchMembers])
 
-  const addMember = async (params: Omit<TeamMember, 'id'>) => {
-    const { data, error } = await supabase
-      .from('team_members')
-      .insert({
-        name: params.name,
-        role: params.role,
-        team: params.team,
-        avatar: params.avatar || params.name.charAt(0),
-        email: params.email,
-        online: false,
-        revenue: 0,
-        leads: 0,
-        closing: 0,
-        score: 0,
-      })
-      .select()
-      .single()
-    if (!error) await fetchMembers()
-    return { data, error }
-  }
-
-  const deleteMember = async (id: string) => {
-    const { error } = await supabase.from('team_members').delete().eq('id', id)
-    if (!error) await fetchMembers()
-    return { error }
-  }
-
-  return { members, loading, addMember, deleteMember, refetch: fetchMembers }
+  return { members, loading, refetch: fetchMembers }
 }

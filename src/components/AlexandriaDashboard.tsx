@@ -714,7 +714,8 @@ function PerformanceView({ dark, currentUser }: { dark:boolean; currentUser:User
 
 // ─── Team View ────────────────────────────────────────────────────────────────
 function TeamView({ dark, currentUser, isOnline }: { dark:boolean; currentUser:User; isOnline:(id:string)=>boolean }) {
-  const { members, loading, addMember, deleteMember } = useTeams()
+  const teamFilter = currentUser.role === 'manager' ? currentUser.team : undefined
+  const { members, loading, refetch } = useTeams(teamFilter)
   const [showAdd, setShowAdd] = useState(false)
   const [filterTeam, setFilterTeam] = useState<string>('All')
   const [newMember, setNewMember] = useState({ name:'', email:'', role:'staff', team:'Tim A' })
@@ -748,7 +749,14 @@ function TeamView({ dark, currentUser, isOnline }: { dark:boolean; currentUser:U
   const handleAdd = async () => {
     if (!newMember.name || !newMember.email) return
     setSaving(true)
-    await addMember({ ...newMember, avatar: newMember.name.charAt(0).toUpperCase(), online:false, revenue:0, leads:0, closing:0, score:0 })
+    const supabase = (await import('@/lib/supabase/client')).createClient()
+    await supabase.from('profiles').insert({
+      full_name: newMember.name,
+      email: newMember.email,
+      role: newMember.role,
+      team: newMember.team,
+    })
+    await refetch()
     setNewMember({ name:'', email:'', role:'staff', team:'Tim A' })
     setShowAdd(false); setSaving(false)
   }
@@ -855,7 +863,7 @@ function TeamView({ dark, currentUser, isOnline }: { dark:boolean; currentUser:U
                   <td className={`px-5 py-3 text-right hidden lg:table-cell text-sm font-bold text-green-400`}>{u.closing}</td>
                   {canManage && (
                     <td className="px-5 py-3 text-center">
-                      <button onClick={()=>deleteMember(u.id)} className={`w-7 h-7 rounded-lg flex items-center justify-center mx-auto transition-colors ${dark?'bg-[#1e2d4a] hover:bg-red-600 text-slate-400 hover:text-white':'bg-slate-100 hover:bg-red-500 text-slate-500 hover:text-white'}`}><Trash2 size={12}/></button>
+                      <button onClick={async()=>{ const supabase = (await import('@/lib/supabase/client')).createClient(); await supabase.from('profiles').delete().eq('id',u.id); await refetch() }} className={`w-7 h-7 rounded-lg flex items-center justify-center mx-auto transition-colors ${dark?'bg-[#1e2d4a] hover:bg-red-600 text-slate-400 hover:text-white':'bg-slate-100 hover:bg-red-500 text-slate-500 hover:text-white'}`}><Trash2 size={12}/></button>
                     </td>
                   )}
                 </motion.tr>
