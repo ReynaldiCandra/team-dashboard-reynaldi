@@ -1573,7 +1573,12 @@ function StarRating({ value, onChange, dark }: { value:number; onChange?:(v:numb
 
 function LeadsView({ dark, currentUser }: { dark:boolean; currentUser:User }) {
   const isManager = ['owner','deputi','head_manager','manager'].includes(currentUser.role)
-  const { leads: dbLeads, loading, createLead, updateLead, deleteLead } = useLeads((['head_manager','deputi','owner'].includes(currentUser.role)) ? undefined : currentUser.id)
+  const isHeadRole = ['head_manager','deputi','owner'].includes(currentUser.role)
+  const isManagerRole = currentUser.role === 'manager'
+  const { leads: dbLeads, loading, createLead, updateLead, deleteLead } = useLeads(
+    isHeadRole ? undefined : isManagerRole ? undefined : currentUser.id,
+    isManagerRole ? currentUser.team : undefined
+  )
   const [filterCategory, setFilterCategory] = useState<'all'|'HOT'|'COLD'|'WARM'|'FREEZE'>('all')
   const [filterStaff, setFilterStaff] = useState('all')
   const [search, setSearch] = useState('')

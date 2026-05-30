@@ -73,7 +73,7 @@ function logError(label: string, error: { message?: string; code?: string; hint?
   console.error(`${label} — message: ${error.message} | code: ${error.code} | hint: ${error.hint} | details: ${error.details}`)
 }
 
-export function useLeads(assignedTo?: string) {
+export function useLeads(assignedTo?: string, teamFilter?: string) {
   const [leads, setLeads] = useState<Lead[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -85,12 +85,13 @@ export function useLeads(assignedTo?: string) {
       .order('created_at', { ascending: false })
 
     if (assignedTo) query = query.eq('assigned_to', assignedTo)
+    if (teamFilter) query = query.eq('team', teamFilter)
 
     const { data, error } = await query
     if (error) logError('fetchLeads error', error)
     setLeads((data ?? []).map(r => mapLead(r as Record<string, unknown>)))
     setLoading(false)
-  }, [assignedTo]) // eslint-disable-line
+  }, [assignedTo, teamFilter]) // eslint-disable-line
 
   useEffect(() => {
     fetchLeads()
