@@ -225,7 +225,7 @@ export default function RakornasPage() {
               ].map(f => (
                 <div key={f.key}>
                   <label className="block text-xs text-gray-500 mb-1">{f.label}</label>
-                  <textarea value={(form as Record<string,string>)[f.key] ?? ''} rows={3}
+                  <textarea value={(form as Record<string, unknown>)[f.key] as string ?? ''} rows={3}
                     placeholder={f.ph}
                     onChange={e => setForm(p => ({...p, [f.key]: e.target.value}))}
                     className="w-full border border-gray-200 dark:border-gray-600 rounded-xl px-3 py-2 text-sm dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />

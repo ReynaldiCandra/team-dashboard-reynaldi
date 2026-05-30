@@ -61,9 +61,34 @@ export function useAuth() {
   const canSeeAllTeams = isHeadManager
   const userTeam = profile?.team
 
-  return {
+  
+  const signInWithPassword = async (email: string, password: string) => {
+    return await supabase.auth.signInWithPassword({ email, password })
+  }
+
+  const signInWithMagicLink = async (email: string) => {
+    return await supabase.auth.signInWithOtp({ email })
+  }
+return {
     user, profile, loading, signOut,
     isHeadManager, isManager, isStaff,
     canSeeAllTeams, userTeam,
+    signInWithPassword,
+    signInWithMagicLink,
   }
+}
+
+// Tambahan untuk login page
+export function useAuthActions() {
+  const supabase = createClient()
+
+  const signInWithPassword = async (email: string, password: string) => {
+    return await supabase.auth.signInWithPassword({ email, password })
+  }
+
+  const signInWithMagicLink = async (email: string) => {
+    return await supabase.auth.signInWithOtp({ email })
+  }
+
+  return { signInWithPassword, signInWithMagicLink }
 }
