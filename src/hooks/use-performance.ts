@@ -56,6 +56,14 @@ export function usePerformance(staffId?: string) {
 
   const fetchRecords = useCallback(async () => {
     setLoading(true)
+
+    // Cek session dulu sebelum query
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session?.user) {
+      setLoading(false)
+      return
+    }
+
     let query = supabase
       .from('performances')
       .select('*')
@@ -65,7 +73,9 @@ export function usePerformance(staffId?: string) {
     if (staffId) query = query.eq('staff_id', staffId)
 
     const { data, error } = await query
-    if (error) console.error('fetchPerformance error:', error)
+    if (error) {
+      console.error('fetchPerformance error:', error.message, '| code:', error.code, '| hint:', error.hint)
+    }
     setRecords((data ?? []).map(r => mapRow(r as Record<string, unknown>)))
     setLoading(false)
   }, [staffId])
@@ -80,7 +90,6 @@ export function usePerformance(staffId?: string) {
   }, [fetchRecords])
 
   async function upsertPerformance(data: Omit<Performance, 'id' | 'score'>) {
-    // Pakai getSession() — lebih reliable untuk client-side
     const { data: { session } } = await supabase.auth.getSession()
     if (!session?.user) return { error: new Error('Not authenticated') }
 
@@ -103,13 +112,12 @@ export function usePerformance(staffId?: string) {
       notes: data.notes ?? null,
     }, { onConflict: 'staff_id,record_date' })
 
-    if (error) { console.error('upsertPerformance error:', error); return { error } }
+    if (error) { console.error('upsertPerformance error:', error.message, '| code:', error.code); return { error } }
     await fetchRecords()
     return { error: null }
   }
 
   async function checkIn() {
-    // Pakai getSession() — lebih reliable untuk client-side
     const { data: { session } } = await supabase.auth.getSession()
     if (!session?.user) return { error: new Error('Not authenticated'), time: null }
 
@@ -124,7 +132,7 @@ export function usePerformance(staffId?: string) {
       attendance: 'hadir',
     }, { onConflict: 'staff_id,record_date' })
 
-    if (error) console.error('checkIn error:', error)
+    if (error) console.error('checkIn error:', error.message, '| code:', error.code)
     else await fetchRecords()
     return { error, time: timeStr }
   }

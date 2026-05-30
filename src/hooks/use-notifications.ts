@@ -13,6 +13,9 @@ export interface Notification {
   createdAt: string
 }
 
+// Singleton — sesi tidak hilang antar render
+const supabase = createClient()
+
 function mapRow(row: Record<string, unknown>): Notification {
   return {
     id: row.id as string,
@@ -35,28 +38,37 @@ function timeAgo(dateStr: string): string {
   return `${Math.floor(hrs / 24)} hari lalu`
 }
 
+const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 export function useNotifications(userId?: string) {
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [loading, setLoading] = useState(true)
-  const supabase = createClient()
 
   const fetchNotifications = useCallback(async () => {
     setLoading(true)
-    let query = supabase
+
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session?.user) {
+      setLoading(false)
+      return
+    }
+
+    // Pakai userId kalau valid UUID, fallback ke session user id
+    const validUserId = userId && uuidRegex.test(userId) ? userId : session.user.id
+
+    const { data, error } = await supabase
       .from('notifications')
       .select('*')
+      .or(`user_id.eq.${validUserId},user_id.is.null`)
       .order('created_at', { ascending: false })
       .limit(20)
 
-    if (userId) {
-      query = query.or(`user_id.eq.${userId},user_id.is.null`)
+    if (error) {
+      console.error('fetchNotifications error:', error.message, '| code:', error.code, '| hint:', error.hint)
     }
-
-    const { data, error } = await query
-    if (error) console.error('fetchNotifications error:', error)
     setNotifications((data ?? []).map(r => mapRow(r as Record<string, unknown>)))
     setLoading(false)
-  }, [userId]) // eslint-disable-line
+  }, [userId])
 
   useEffect(() => {
     fetchNotifications()
@@ -65,14 +77,16 @@ export function useNotifications(userId?: string) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications' }, fetchNotifications)
       .subscribe()
     return () => { supabase.removeChannel(channel) }
-  }, [fetchNotifications]) // eslint-disable-line
+  }, [fetchNotifications])
 
   async function markAllRead() {
-    if (!userId) return
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session?.user) return
+    const validUserId = userId && uuidRegex.test(userId) ? userId : session.user.id
     const { error } = await supabase
       .from('notifications')
       .update({ is_read: true })
-      .or(`user_id.eq.${userId},user_id.is.null`)
+      .or(`user_id.eq.${validUserId},user_id.is.null`)
       .eq('is_read', false)
     if (!error) await fetchNotifications()
   }

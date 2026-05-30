@@ -69,6 +69,10 @@ function mapLead(row: Record<string, unknown>): Lead {
 // Singleton agar session tidak hilang antar render
 const supabase = createClient()
 
+function logError(label: string, error: { message?: string; code?: string; hint?: string; details?: string }) {
+  console.error(`${label} — message: ${error.message} | code: ${error.code} | hint: ${error.hint} | details: ${error.details}`)
+}
+
 export function useLeads(assignedTo?: string) {
   const [leads, setLeads] = useState<Lead[]>([])
   const [loading, setLoading] = useState(true)
@@ -83,7 +87,7 @@ export function useLeads(assignedTo?: string) {
     if (assignedTo) query = query.eq('assigned_to', assignedTo)
 
     const { data, error } = await query
-    if (error) console.error('fetchLeads error:', error)
+    if (error) logError('fetchLeads error', error)
     setLeads((data ?? []).map(r => mapLead(r as Record<string, unknown>)))
     setLoading(false)
   }, [assignedTo]) // eslint-disable-line
@@ -98,7 +102,6 @@ export function useLeads(assignedTo?: string) {
   }, [fetchLeads]) // eslint-disable-line
 
   async function createLead(data: Omit<Lead, 'id' | 'createdAt' | 'updatedAt'>) {
-    // Gunakan getSession() — lebih reliable untuk client-side
     const { data: { session } } = await supabase.auth.getSession()
     if (!session?.user) return { error: new Error('Not authenticated') }
 
@@ -123,7 +126,7 @@ export function useLeads(assignedTo?: string) {
       handler_role: data.handlerRole ?? null,
     })
 
-    if (error) { console.error('createLead error:', error); return { error } }
+    if (error) { logError('createLead error', error); return { error } }
     await fetchLeads()
     return { error: null }
   }
@@ -137,15 +140,14 @@ export function useLeads(assignedTo?: string) {
     if (updates.assignedTo !== undefined) payload.assigned_to = updates.assignedTo
     if (updates.assignedStaffName !== undefined) payload.assigned_staff_name = updates.assignedStaffName
 
-    // OPTIMISTIC UPDATE — update local state immediately so UI responds instantly
     setLeads(prev => prev.map(l => l.id === leadId ? { ...l, ...updates } : l))
 
     const { error } = await supabase.from('leads').update(payload).eq('id', leadId)
     if (error) {
-      console.error('updateLead error:', error)
-      await fetchLeads() // revert on error
+      logError('updateLead error', error)
+      await fetchLeads()
     } else {
-      await fetchLeads() // confirm with server data
+      await fetchLeads()
     }
     return { error }
   }
@@ -156,13 +158,12 @@ export function useLeads(assignedTo?: string) {
 
   async function deleteLead(leadId: string) {
     const { error } = await supabase.from('leads').delete().eq('id', leadId)
-    if (error) console.error('deleteLead error:', error)
+    if (error) logError('deleteLead error', error)
     else await fetchLeads()
     return { error }
   }
 
   async function addNote(leadId: string, note: string, result?: string) {
-    // Gunakan getSession() — lebih reliable untuk client-side
     const { data: { session } } = await supabase.auth.getSession()
     if (!session?.user) return { error: new Error('Not authenticated') }
 
@@ -177,7 +178,7 @@ export function useLeads(assignedTo?: string) {
       result: result ?? null,
     })
 
-    if (error) console.error('addNote error:', error)
+    if (error) logError('addNote error', error)
     return { error }
   }
 
@@ -187,7 +188,7 @@ export function useLeads(assignedTo?: string) {
       .select('*')
       .eq('lead_id', leadId)
       .order('created_at', { ascending: false })
-    if (error) { console.error('fetchNotes error:', error); return [] }
+    if (error) { logError('fetchNotes error', error); return [] }
     return (data ?? []).map(r => ({
       id: (r as Record<string, unknown>).id as string,
       leadId: (r as Record<string, unknown>).lead_id as string,
