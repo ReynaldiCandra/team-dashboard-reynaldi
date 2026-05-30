@@ -171,26 +171,26 @@ const CAMPAIGNS = [
 
 const LEADERBOARD: never[] = []
 const PERF_METRICS = [
-  { key:'leads', label:'Leads Masuk', icon:Users, target:30, achieved:24, color:'blue' },
-  { key:'prospect', label:'Prospect', icon:Target, target:20, achieved:18, color:'purple' },
-  { key:'meeting', label:'Meeting', icon:Calendar, target:10, achieved:7, color:'cyan' },
-  { key:'proposal', label:'Proposal', icon:Clipboard, target:8, achieved:6, color:'indigo' },
-  { key:'closing', label:'Closing', icon:CheckCircle, target:5, achieved:4, color:'green' },
-  { key:'revenue', label:'Revenue (jt)', icon:DollarSign, target:50, achieved:42, color:'orange' },
-  { key:'followup', label:'Follow-up', icon:RefreshCw, target:50, achieved:45, color:'teal' },
-  { key:'new_leads', label:'Treatment Baru', icon:UserPlus, target:15, achieved:12, color:'pink' },
-  { key:'old_leads', label:'Treatment Lama', icon:Clock, target:20, achieved:17, color:'yellow' },
+  { key:'leads', label:'Leads Masuk', icon:Users, target:30, achieved:0, color:'blue' },
+  { key:'prospect', label:'Prospect', icon:Target, target:20, achieved:0, color:'purple' },
+  { key:'meeting', label:'Meeting', icon:Calendar, target:10, achieved:0, color:'cyan' },
+  { key:'proposal', label:'Proposal', icon:Clipboard, target:8, achieved:0, color:'indigo' },
+  { key:'closing', label:'Closing', icon:CheckCircle, target:5, achieved:0, color:'green' },
+  { key:'revenue', label:'Revenue (jt)', icon:DollarSign, target:50, achieved:0, color:'orange' },
+  { key:'followup', label:'Follow-up', icon:RefreshCw, target:50, achieved:0, color:'teal' },
+  { key:'new_leads', label:'Treatment Baru', icon:UserPlus, target:15, achieved:0, color:'pink' },
+  { key:'old_leads', label:'Treatment Lama', icon:Clock, target:20, achieved:0, color:'yellow' },
 ]
 
-const GOALS = [
-  { id:'1', title:'Revenue Q2 2026', description:'Mencapai total revenue Rp 600jt di Q2', target:600, current:385, unit:'jt', deadline:'2026-06-30', owner:'Tim All', priority:'high', status:'on-track' },
+const GOALS_DUMMY_REMOVED = [
+  { id:'REMOVED', title:'Revenue Q2 2026', description:'Mencapai total revenue Rp 600jt di Q2', target:600, current:385, unit:'jt', deadline:'2026-06-30', owner:'Tim All', priority:'high', status:'on-track' },
   { id:'2', title:'1000 Leads Baru', description:'Akuisisi 1000 leads baru dalam Q2', target:1000, current:628, unit:'leads', deadline:'2026-06-30', owner:'Mr. Farhan', priority:'high', status:'on-track' },
   { id:'3', title:'Konversi 35%', description:'Meningkatkan conversion rate ke 35%', target:35, current:32.4, unit:'%', deadline:'2026-06-30', owner:'Tim Alpha', priority:'medium', status:'at-risk' },
   { id:'4', title:'5 Campaign Aktif', description:'Jalankan minimal 5 campaign serentak', target:5, current:2, unit:'campaign', deadline:'2026-07-01', owner:'Siti Leader', priority:'low', status:'behind' },
 ]
 
-const ATTENDANCE = [
-  { date:'2026-05-24', farhan:'hadir', ramram:'hadir', checkIn:'08:02', checkOut:'-' },
+const ATTENDANCE_DUMMY_REMOVED = [
+  { date:'REMOVED', farhan:'hadir', ramram:'hadir', checkIn:'08:02', checkOut:'-' },
   { date:'2026-05-23', farhan:'hadir', ramram:'wfh', checkIn:'08:15', checkOut:'17:30' },
   { date:'2026-05-22', farhan:'hadir', ramram:'hadir', checkIn:'07:58', checkOut:'17:45' },
   { date:'2026-05-21', farhan:'wfh', ramram:'hadir', checkIn:'08:30', checkOut:'17:00' },
@@ -575,7 +575,7 @@ function DashboardView({ dark, currentUser }: { dark:boolean; currentUser:User }
 }
 
 // ─── Performance View ─────────────────────────────────────────────────────────
-function PerformanceView({ dark, currentUser }: { dark:boolean; currentUser:User }) {
+function StaffPerformanceView({ dark, currentUser }: { dark:boolean; currentUser:User }) {
   const [saved, setSaved] = useState(false)
   const [saving, setSaving] = useState(false)
   const [attendance, setAttendance] = useState<'hadir'|'wfh'|'dinas'>('hadir')
@@ -697,16 +697,7 @@ function PerformanceView({ dark, currentUser }: { dark:boolean; currentUser:User
 
       {/* Score Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {USERS.filter(u=>u.role==='staff').map(u=>(
-          <Card key={u.id} dark={dark} className="p-4 text-center">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold text-lg mx-auto mb-2 shadow-lg shadow-blue-500/25">{u.avatar}</div>
-            <p className={`text-xs font-semibold ${text}`}>{u.name}</p>
-            <p className={`text-3xl font-bold mt-1 ${u.score>=80?'text-green-400':u.score>=60?'text-yellow-400':'text-red-400'}`}>{u.score}</p>
-            <p className={`text-xs ${muted}`}>/ 100 poin</p>
-            <ProgressBar value={u.score} max={100} color={u.score>=80?'green':u.score>=60?'yellow':'orange'} dark={dark} />
-            <div className={`mt-2 text-xs ${muted}`}>{u.score>=80?'🌟 Excellent':u.score>=60?'✅ Good':'⚠️ Needs Work'}</div>
-          </Card>
-        ))}
+        {/* Score cards now in TeamView */}
       </div>
     </div>
   )
@@ -2251,6 +2242,7 @@ const NOTIF_TYPE_COLOR: Record<string, string> = {
   info: 'text-blue-400',
 }
 
+
 export default function AlexandriaDashboard() {
   const [loggedIn, setLoggedIn] = useState(false)
   const [user, setUser] = useState<User|null>(null)
@@ -2481,7 +2473,7 @@ export default function AlexandriaDashboard() {
             <motion.div key={view} initial={{opacity:0,y:8}} animate={{opacity:1,y:0}} exit={{opacity:0,y:-8}} transition={{duration:0.2}}>
               {view==='dashboard' && <DashboardView dark={d} currentUser={user}/>}
               {view==='leads' && <LeadsView dark={d} currentUser={user}/>}
-              {view==='performance' && <PerformanceView dark={d} currentUser={user}/>}
+              {view==='performance' && <StaffPerformanceView dark={d} currentUser={user}/>}
               {view==='team' && <TeamView dark={d} currentUser={user} isOnline={isOnline}/>}
               {view==='campaigns' && <CampaignsView dark={d}/>}
               {view==='reports' && <ReportsView dark={d}/>}
