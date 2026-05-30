@@ -31,6 +31,7 @@ import type { OkrGoal } from '@/hooks/use-goals'
 import { useAttendance } from '@/hooks/use-attendance'
 import { useClosings, useCommissionSettings } from '@/hooks/use-commission'
 import { useTeams } from '@/hooks/use-team'
+import { usePresence } from '@/hooks/use-presence'
 import { createClient } from '@/lib/supabase/client'
 import type { Lead as DBLead, LeadCategory } from '@/hooks/use-leads'
 import { useNotifications } from '@/hooks/use-notifications'
@@ -718,7 +719,7 @@ function PerformanceView({ dark, currentUser }: { dark:boolean; currentUser:User
 }
 
 // ─── Team View ────────────────────────────────────────────────────────────────
-function TeamView({ dark, currentUser }: { dark:boolean; currentUser:User }) {
+function TeamView({ dark, currentUser, isOnline }: { dark:boolean; currentUser:User; isOnline:(id:string)=>boolean }) {
   const { members, loading, addMember, deleteMember } = useTeams()
   const [showAdd, setShowAdd] = useState(false)
   const [filterTeam, setFilterTeam] = useState<string>('All')
@@ -2251,6 +2252,7 @@ const NOTIF_TYPE_COLOR: Record<string, string> = {
 export default function AlexandriaDashboard() {
   const [loggedIn, setLoggedIn] = useState(false)
   const [user, setUser] = useState<User|null>(null)
+  const { isOnline } = usePresence(user?.id ?? '', user?.name ?? '')
   const [dark, setDark] = useState(true)
   const [collapsed, setCollapsed] = useState(false)
   const [view, setView] = useState<View>('dashboard')
@@ -2478,7 +2480,7 @@ export default function AlexandriaDashboard() {
               {view==='dashboard' && <DashboardView dark={d}/>}
               {view==='leads' && <LeadsView dark={d} currentUser={user}/>}
               {view==='performance' && <PerformanceView dark={d} currentUser={user}/>}
-              {view==='team' && <TeamView dark={d} currentUser={user}/>}
+              {view==='team' && <TeamView dark={d} currentUser={user} isOnline={isOnline}/>}
               {view==='campaigns' && <CampaignsView dark={d}/>}
               {view==='reports' && <ReportsView dark={d}/>}
               {view==='goals' && <GoalsView dark={d}/>}
