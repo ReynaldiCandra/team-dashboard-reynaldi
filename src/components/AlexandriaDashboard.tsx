@@ -33,6 +33,7 @@ import { useClosings, useCommissionSettings } from '@/hooks/use-commission'
 import { useTeams } from '@/hooks/use-team'
 import { usePresence } from '@/hooks/use-presence'
 import { useActivityLogs } from '@/hooks/use-activity'
+import ClosingPage from '@/components/pages/ClosingPage'
 import { useLeaderboard } from '@/hooks/use-leaderboard'
 import { createClient } from '@/lib/supabase/client'
 import type { Lead as DBLead, LeadCategory } from '@/hooks/use-leads'
@@ -42,7 +43,7 @@ import { usePerformance } from '@/hooks/use-performance'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 type Role = 'owner' | 'deputi' | 'head_manager' | 'manager' | 'staff'
-type View = 'dashboard' | 'leads' | 'performance' | 'team' | 'campaigns' | 'reports' | 'goals' | 'attendance' | 'commission' | 'settings'
+type View = 'dashboard' | 'leads' | 'performance' | 'team' | 'campaigns' | 'reports' | 'goals' | 'attendance' | 'commission' | 'closing' | 'settings'
 
 type LeadStatus = 'baru' | 'dihubungi' | 'berminat' | 'survey' | 'meeting' | 'proposal' | 'closing' | 'gagal'
 type LeadTemp = 'hot' | 'warm' | 'cold'
@@ -111,8 +112,8 @@ type TeamName = typeof TEAMS[number] | 'All'
 const ROLE_CONFIG: Record<Role, { label:string; badge:string; nav:string[] }> = {
   owner:        { label:'Pemilik Yayasan', badge:'bg-yellow-500/20 text-yellow-300', nav:['dashboard','performance','team','campaigns','reports','goals','settings'] },
   deputi:       { label:'Deputi',          badge:'bg-purple-500/20 text-purple-300', nav:['dashboard','performance','team','campaigns','reports','goals','attendance','commission','settings'] },
-  head_manager: { label:'Head Manager',   badge:'bg-red-500/20 text-red-300',    nav:['dashboard','leads','performance','team','campaigns','reports','goals','attendance','commission','settings'] },
-  manager:      { label:'Manager',         badge:'bg-orange-500/20 text-orange-400', nav:['dashboard','leads','performance','team','campaigns','goals','attendance','commission'] },
+  head_manager: { label:'Head Manager',   badge:'bg-red-500/20 text-red-300',    nav:['dashboard','leads','performance','team','campaigns','reports','goals','attendance','commission','closing','settings'] },
+  manager:      { label:'Manager',         badge:'bg-orange-500/20 text-orange-400', nav:['dashboard','leads','performance','team','campaigns','goals','attendance','commission','closing'] },
   staff:        { label:'Staff Marketing', badge:'bg-blue-500/20 text-blue-400',    nav:['dashboard','leads','attendance','commission'] },
 }
 
@@ -2217,7 +2218,7 @@ const NAV: { icon:React.ComponentType<{size?:number;className?:string}>; label:s
 const viewTitle: Record<View,string> = {
   dashboard:'Dashboard Overview', leads:'Leads Management', performance:'Input Performa',
   team:'Manajemen Tim', campaigns:'Campaign', reports:'Reports & Analytics',
-  goals:'OKR Goals', attendance:'Attendance & Check-in', commission:'Komisi & Insentif', settings:'Pengaturan'
+  goals:'OKR Goals', attendance:'Attendance & Check-in', commission:'Komisi & Insentif', closing:'Closing', settings:'Pengaturan'
 }
 
 // ─── Mobile Bottom Nav Items ─────────────────────────────────────────────────
@@ -2480,6 +2481,7 @@ export default function AlexandriaDashboard() {
               {view==='goals' && <GoalsView dark={d}/>}
               {view==='attendance' && <AttendanceView dark={d} currentUser={user}/>}
               {view==='commission' && <CommissionView dark={d} currentUser={user}/>}
+              {view==='closing' && <ClosingPage dark={d} currentUser={user}/>}
               {view==='settings' && (
                 <Card dark={d} className="p-8 text-center">
                   <Settings size={48} className={`mx-auto mb-3 ${muted}`}/>
