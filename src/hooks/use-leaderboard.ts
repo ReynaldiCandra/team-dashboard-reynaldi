@@ -34,10 +34,10 @@ export function useLeaderboard(team?: string) {
           .eq('assigned_to', p.id)
         
         const { data: closings } = await supabase
-          .from('closings').select('nominal, komisi_staff')
+          .from('closings').select('nominal_bayar, komisi_staff')
           .eq('staff_id', p.id)
         
-        const revenue = (closings ?? []).reduce((s: number, c: Record<string,number>) => s + (c.nominal ?? 0), 0)
+        const revenue = (closings ?? []).reduce((s: number, c: Record<string,number>) => s + (c.nominal_bayar ?? 0), 0)
         const closing = closings?.length ?? 0
         const leads = leadsCount ?? 0
         const score = Math.min(100, Math.round((leads * 0.3) + (closing * 5) + (revenue / 10000000)))
