@@ -129,6 +129,13 @@ export function useLeads(assignedTo?: string, teamFilter?: string) {
 
     if (error) { logError('createLead error', error); return { error } }
     await fetchLeads()
+    // Activity log
+    await supabase.from('activity_logs').insert({
+      user_id: data.assignedTo ?? null,
+      user_name: data.handlerName ?? 'Unknown',
+      action: 'Menambah lead baru: ' + data.childName + ' (' + (data.leadCategory ?? 'WARM') + ')',
+      team: data.team ?? null,
+    })
     return { error: null }
   }
 
