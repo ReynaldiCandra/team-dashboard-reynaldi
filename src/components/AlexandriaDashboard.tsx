@@ -326,10 +326,14 @@ function MotivationalBanner({ dark: _dark }: { dark:boolean }) {
 // ─── Dashboard View ───────────────────────────────────────────────────────────
 function DashboardView({ dark, currentUser }: { dark:boolean; currentUser:User }) {
   const [aiSummary, setAiSummary] = useState(false)
+  const now = new Date()
+  const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1)
+  const [selectedYear, setSelectedYear] = useState(now.getFullYear())
   const [generating, setGenerating] = useState(false)
   const [summaryText, setSummaryText] = useState('')
-  const { stats, changes, loading: kpiLoading } = useKpiStats()
   const isHeadRole = ['head_manager','deputi','owner'].includes(currentUser?.role ?? '')
+  const teamFilter = isHeadRole ? undefined : currentUser?.team
+  const { stats, changes, loading: kpiLoading } = useKpiStats(teamFilter, selectedMonth, selectedYear)
   const { data: leaderboard } = useLeaderboard(isHeadRole ? undefined : currentUser?.team)
   const { logs: activityLogs } = useActivityLogs(isHeadRole ? undefined : currentUser?.team)
   const card = dark ? 'bg-[#111d35] border-[#1e2d4a]' : 'bg-white border-slate-200'
@@ -341,10 +345,12 @@ function DashboardView({ dark, currentUser }: { dark:boolean; currentUser:User }
 
   const fmtRevenue = (n: number) => n >= 1000000 ? `Rp ${(n/1000000).toFixed(0)}jt` : n > 0 ? `Rp ${n.toLocaleString('id')}` : 'Rp 0'
 
-  const kpiRevenue = stats ? fmtRevenue(stats.revenueThisMonth || stats.totalRevenue) : (kpiLoading ? '...' : 'Rp 0')
+  const kpiRevenue = stats ? fmtRevenue(stats.revenueThisMonth) : (kpiLoading ? '...' : 'Rp 0')
+  const MONTHS = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des']
+  const YEARS = [2024, 2025, 2026, 2027]
   const kpiLeads = stats ? (stats.totalLeads >= 1000 ? `${(stats.totalLeads/1000).toFixed(1)}K` : String(stats.totalLeads)) : (kpiLoading ? '...' : '0')
   const kpiConversion = stats ? `${stats.conversionRate}%` : (kpiLoading ? '...' : '0%')
-  const kpiClosing = stats ? String(stats.closingThisMonth || stats.totalClosing) : (kpiLoading ? '...' : '0')
+  const kpiClosing = stats ? String(stats.closingThisMonth) : (kpiLoading ? '...' : '0')
 
   const revenueChange = changes ? `${changes.revenueChange >= 0 ? '+' : ''}${changes.revenueChange}% vs bulan lalu` : '— vs bulan lalu'
   const leadsChange = changes ? `${changes.leadsChange >= 0 ? '+' : ''}${changes.leadsChange}% vs bulan lalu` : '— vs bulan lalu'

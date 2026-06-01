@@ -32,16 +32,18 @@ function pctChange(current: number, previous: number): number {
   return Math.round(((current - previous) / previous) * 100)
 }
 
-export function useKpiStats(teamFilter?: string) {
+export function useKpiStats(teamFilter?: string, monthFilter?: number, yearFilter?: number) {
   const [stats, setStats] = useState<KpiStats | null>(null)
   const [loading, setLoading] = useState(true)
   const supabase = createClient()
 
   const fetchStats = useCallback(async () => {
+    const filterYear = yearFilter ?? new Date().getFullYear()
+    const filterMonth = monthFilter ?? new Date().getMonth() + 1
     setLoading(true)
     const now = new Date()
-    const thisYear = now.getFullYear()
-    const thisMonth = now.getMonth() + 1
+    const thisYear = filterYear
+    const thisMonth = filterMonth
     const lastMonth = thisMonth === 1 ? 12 : thisMonth - 1
     const lastMonthYear = thisMonth === 1 ? thisYear - 1 : thisYear
     const pad = (n: number) => String(n).padStart(2, '0')
@@ -108,7 +110,7 @@ export function useKpiStats(teamFilter?: string) {
 
     setStats({ totalLeads, totalRevenue, totalClosing, conversionRate, leadsThisMonth, revenueThisMonth, closingThisMonth, leadsLastMonth, revenueLastMonth, closingLastMonth, totalKomisiStaff, totalKomisiManager, enrolledLeads, monthlyTrend, sourceBreakdown })
     setLoading(false)
-  }, [teamFilter])
+  }, [teamFilter, monthFilter, yearFilter])
 
   useEffect(() => {
     fetchStats()
