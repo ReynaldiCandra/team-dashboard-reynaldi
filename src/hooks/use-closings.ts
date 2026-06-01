@@ -110,7 +110,7 @@ export function useClosings(teamFilter?: string, staffFilter?: string) {
       komisi_manager: komisiManager,
       wa_text: waText,
     })
-    if (!error && data.leadId) {
+    console.log("addClosing error:", JSON.stringify(error)); if (!error && data.leadId) {
       await supabase.from('leads').update({ status: 'enrolled' }).eq('id', data.leadId)
     }
     if (!error) await fetchData()
