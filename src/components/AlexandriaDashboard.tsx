@@ -1775,14 +1775,14 @@ function LeadsView({ dark, currentUser }: { dark:boolean; currentUser:User }) {
                           <div className="flex gap-1">
                             {prevCat && (
                               <button title={`Pindah ke ${prevCat}`}
-                                onClick={async()=>{await updateLead(lead.id,{leadCategory:prevCat});showToast(`↑ Dipindah ke ${prevCat}`)}}
+                                onClick={async()=>{await updateLead(lead.id,{leadCategory:prevCat});await addLog(currentUser.id,currentUser.name,`Update lead ke ${prevCat}`,currentUser.team??undefined);showToast(`↑ Dipindah ke ${prevCat}`)}}
                                 className={`flex items-center gap-0.5 px-1.5 py-1 rounded-lg text-[9px] font-bold border transition-colors ${CATEGORY_CFG[prevCat].bg} ${CATEGORY_CFG[prevCat].color}`}>
                                 ↑ {prevCat}
                               </button>
                             )}
                             {nextCat && (
                               <button title={`Pindah ke ${nextCat}`}
-                                onClick={async()=>{await updateLead(lead.id,{leadCategory:nextCat});showToast(`↓ Dipindah ke ${nextCat}`)}}
+                                onClick={async()=>{await updateLead(lead.id,{leadCategory:nextCat});await addLog(currentUser.id,currentUser.name,`Update lead ke ${nextCat}`,currentUser.team??undefined);showToast(`↓ Dipindah ke ${nextCat}`)}}
                                 className={`flex items-center gap-0.5 px-1.5 py-1 rounded-lg text-[9px] font-bold border transition-colors ${CATEGORY_CFG[nextCat].bg} ${CATEGORY_CFG[nextCat].color}`}>
                                 ↓ {nextCat}
                               </button>
@@ -1790,7 +1790,7 @@ function LeadsView({ dark, currentUser }: { dark:boolean; currentUser:User }) {
                           </div>
                           <div className="flex gap-1">
                             <button onClick={()=>handleCopyIndividual(lead)} className={`w-6 h-6 rounded-lg flex items-center justify-center ${dark?'text-green-400 hover:bg-green-500/10':'text-green-600 hover:bg-green-50'}`}><MessageSquare size={11}/></button>
-                            <button onClick={async()=>{await deleteLead(lead.id);showToast('🗑 Lead dihapus')}} className={`w-6 h-6 rounded-lg flex items-center justify-center ${dark?'text-red-400 hover:bg-red-500/10':'text-red-600 hover:bg-red-50'}`}><Trash2 size={11}/></button>
+                            <button onClick={async()=>{await deleteLead(lead.id);await addLog(currentUser.id,currentUser.name,'Menghapus lead',currentUser.team??undefined);showToast('🗑 Lead dihapus')}} className={`w-6 h-6 rounded-lg flex items-center justify-center ${dark?'text-red-400 hover:bg-red-500/10':'text-red-600 hover:bg-red-50'}`}><Trash2 size={11}/></button>
                           </div>
                         </div>
                         {lead.assignedStaffName && <p className={`text-[9px] ${mt} mt-1.5 font-medium`}>👤 {lead.assignedStaffName}</p>}
@@ -1989,7 +1989,7 @@ function LeadsView({ dark, currentUser }: { dark:boolean; currentUser:User }) {
                       const isActive = detailLead.leadCategory === cat
                       return (
                         <button key={cat} onClick={async () => {
-                          await updateLead(detailLead.id, { leadCategory: cat })
+                          await updateLead(detailLead.id, { leadCategory: cat });await addLog(currentUser.id,currentUser.name,`Update kategori lead ke ${cat}`,currentUser.team??undefined)
                           setDetailLead(prev => prev ? { ...prev, leadCategory: cat } : prev)
                           showToast(`✅ Lead dipindah ke ${cat}`)
                         }}
