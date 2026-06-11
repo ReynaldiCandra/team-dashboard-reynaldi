@@ -1576,9 +1576,11 @@ function LeadsView({ dark, currentUser }: { dark:boolean; currentUser:User }) {
   const isManager = ['owner','deputi','head_manager','manager'].includes(currentUser.role)
   const isHeadRole = ['head_manager','deputi','owner'].includes(currentUser.role)
   const isManagerRole = currentUser.role === 'manager'
-  const { leads: dbLeads, loading, createLead, updateLead, deleteLead } = useLeads(
-    isHeadRole ? undefined : isManagerRole ? undefined : currentUser.id,
-    isManagerRole ? currentUser.team : undefined
+  const isStaffRole = currentUser.role === 'staff' || currentUser.role === 'marketing'
+  const { addLog } = useActivityLogs()
+  const { leads: dloading, createLead, updateLead, deleteLead } = useLeads(
+    isStaffRole ? currentUser.id : undefined,
+    isStaffRole ? undefined : isManagerRole ? currentUser.team : undefined
   )
   const [filterCategory, setFilterCategory] = useState<'all'|'HOT'|'COLD'|'WARM'|'FREEZE'>('all')
   const [filterStaff, setFilterStaff] = useState('all')
@@ -1634,10 +1636,11 @@ function LeadsView({ dark, currentUser }: { dark:boolean; currentUser:User }) {
     })
     setSaving(false)
     if (error) { showToast('❌ Gagal menyimpan: ' + error.message); return }
+    await addLog(currentUser.id, currentUser.name, `Menambah lead baru: ${form.childName} (${form.leadCategory})`, isHeadRole ? (form.targetTeam || undefined) : (currentUser.team || undefined))
     setShowAdd(false)
     setFormStep(0)
     setForm({ parentName:'', parentPhone:'', parentArea:'', childName:'', childGender:'L', childClass:'TK', hasSibling:false, source:'Instagram', assignedStaffName:'Mr. Farhan', leadCategory:'WARM', interestRating:3, notes:'', targetTeam:'Tim A' })
-    showToast('✅ Lead berhasil disimpan!')
+    showToast('✅ Lead berh disimpan!')
   }
 
   const handleExportCSV = () => { exportLeadsCSV(dbLeads); showToast('✅ CSV berhasil diunduh!') }

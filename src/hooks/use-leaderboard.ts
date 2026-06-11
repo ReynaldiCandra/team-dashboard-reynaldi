@@ -31,7 +31,7 @@ export function useLeaderboard(team?: string) {
       for (const p of profiles ?? []) {
         const { count: leadsCount } = await supabase
           .from('leads').select('*', { count: 'exact', head: true })
-          .eq('assigned_to', p.id)
+          .or(`assigned_to.eq.${p.id},team.eq.${p.team ?? ''}`)
         
         const { data: closings } = await supabase
           .from('closings').select('nominal_bayar, komisi_staff')
