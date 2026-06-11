@@ -1578,7 +1578,7 @@ function LeadsView({ dark, currentUser }: { dark:boolean; currentUser:User }) {
   const isManagerRole = currentUser.role === 'manager'
   const isStaffRole = currentUser.role === 'staff'
   const { addLog } = useActivityLogs()
-  const { leads: dloading, createLead, updateLead, deleteLead } = useLeads(
+  const { leads: dbLeads, loading, createLead, updateLead, deleteLead } = useLeads(
     isStaffRole ? currentUser.id : undefined,
     isStaffRole ? undefined : isManagerRole ? currentUser.team : undefined
   )
@@ -1632,7 +1632,7 @@ function LeadsView({ dark, currentUser }: { dark:boolean; currentUser:User }) {
       childName: form.childName, childGender: form.childGender, childClass: form.childClass, hasSibling: form.hasSibling,
       source: form.source, assignedStaffName: form.assignedStaffName,
       leadCategory: form.leadCategory, interestRating: form.interestRating, notes: form.notes,
-      status: 'new', handlerName: currentUser.name, handlerRole: currentUser.role, team: isHeadRole ? (form.targetTeam || null) : (currentUser.team || null), assignedTo: currentUser.id,
+      status: 'new', handlerName: currentUser.name, handlerRole: currentUser.role, team: isHeadRole ? (form.targetTeam || undefined) : (currentUser.team ?? undefined), assignedTo: currentUser.id,
     })
     setSaving(false)
     if (error) { showToast('❌ Gagal menyimpan: ' + error.message); return }
