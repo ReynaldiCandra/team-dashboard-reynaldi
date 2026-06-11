@@ -1594,7 +1594,7 @@ function LeadsView({ dark, currentUser }: { dark:boolean; currentUser:User }) {
     parentName:'', parentPhone:'', parentArea:'',
     childName:'', childGender:'L' as 'L'|'P', childClass:'TK', hasSibling:false,
     source:'Instagram', assignedStaffName:'Mr. Farhan',
-    leadCategory:'WARM' as LeadCategory, interestRating:3, notes:''
+    leadCategory:'WARM' as LeadCategory, interestRating:3, notes:'', targetTeam:'Tim A'
   })
 
   const tx = dark?'text-slate-100':'text-slate-800'
@@ -1630,13 +1630,13 @@ function LeadsView({ dark, currentUser }: { dark:boolean; currentUser:User }) {
       childName: form.childName, childGender: form.childGender, childClass: form.childClass, hasSibling: form.hasSibling,
       source: form.source, assignedStaffName: form.assignedStaffName,
       leadCategory: form.leadCategory, interestRating: form.interestRating, notes: form.notes,
-      status: 'new', handlerName: currentUser.name, handlerRole: currentUser.role, team: currentUser.team, assignedTo: currentUser.id,
+      status: 'new', handlerName: currentUser.name, handlerRole: currentUser.role, team: isHeadRole ? (form.targetTeam || null) : (currentUser.team || null), assignedTo: currentUser.id,
     })
     setSaving(false)
     if (error) { showToast('❌ Gagal menyimpan: ' + error.message); return }
     setShowAdd(false)
     setFormStep(0)
-    setForm({ parentName:'', parentPhone:'', parentArea:'', childName:'', childGender:'L', childClass:'TK', hasSibling:false, source:'Instagram', assignedStaffName:'Mr. Farhan', leadCategory:'WARM', interestRating:3, notes:'' })
+    setForm({ parentName:'', parentPhone:'', parentArea:'', childName:'', childGender:'L', childClass:'TK', hasSibling:false, source:'Instagram', assignedStaffName:'Mr. Farhan', leadCategory:'WARM', interestRating:3, notes:'', targetTeam:'Tim A' })
     showToast('✅ Lead berhasil disimpan!')
   }
 
@@ -2148,6 +2148,16 @@ function LeadsView({ dark, currentUser }: { dark:boolean; currentUser:User }) {
                         </select>
                       </div>
                     </div>
+                    {isHeadRole && (
+                      <div>
+                        <label className={`block text-xs font-semibold ${mt} mb-1`}>Assign ke Tim <span className="text-red-400">*</span></label>
+                        <select value={form.targetTeam} onChange={e=>setForm(p=>({...p,targetTeam:e.target.value}))}
+                          className={`w-full px-3 py-2.5 rounded-xl border text-xs outline-none focus:ring-2 focus:ring-blue-500/30 ${inp}`}>
+                          {['Tim A','Tim B','Tim C','Tim D','Tim E','Tim F','Tim G','Tim H'].map(t=><option key={t} value={t}>{t}</option>)}
+                        </select>
+                        <p className={`text-[10px] ${mt} mt-1`}>Lead ini akan muncul di dashboard Manager tim yang dipilih</p>
+                      </div>
+                    )}
                     <div>
                       <label className={`block text-xs font-semibold ${mt} mb-2`}>Kategori Leads</label>
                       <div className="grid grid-cols-2 gap-2">
