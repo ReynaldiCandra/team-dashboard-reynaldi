@@ -1576,7 +1576,7 @@ function LeadsView({ dark, currentUser }: { dark:boolean; currentUser:User }) {
   const isManager = ['owner','deputi','head_manager','manager'].includes(currentUser.role)
   const isHeadRole = ['head_manager','deputi','owner'].includes(currentUser.role)
   const isManagerRole = currentUser.role === 'manager'
-  const isStaffRole = currentUser.role === 'staff' || currentUser.role === 'marketing'
+  const isStaffRole = currentUser.role === 'staff'
   const { addLog } = useActivityLogs()
   const { leads: dloading, createLead, updateLead, deleteLead } = useLeads(
     isStaffRole ? currentUser.id : undefined,
