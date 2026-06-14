@@ -35,6 +35,7 @@ import { usePresence } from '@/hooks/use-presence'
 import { useActivityLogs } from '@/hooks/use-activity'
 import ClosingPage from '@/components/pages/ClosingPage'
 import { useLeaderboard } from '@/hooks/use-leaderboard'
+import { AISummaryModal } from '@/components/AISummaryModal'
 import { useTasks } from '@/hooks/use-tasks'
 import { createClient } from '@/lib/supabase/client'
 import type { Lead as DBLead, LeadCategory } from '@/hooks/use-leads'
@@ -331,6 +332,7 @@ function DashboardView({ dark, currentUser }: { dark:boolean; currentUser:User }
   const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1)
   const [selectedYear, setSelectedYear] = useState(now.getFullYear())
   const [generating, setGenerating] = useState(false)
+  const [aiOpen, setAiOpen] = useState(false)
   const [summaryText, setSummaryText] = useState('')
   const isHeadRole = ['head_manager','deputi','owner'].includes(currentUser?.role ?? '')
   const teamFilter = isHeadRole ? undefined : currentUser?.team
@@ -361,7 +363,8 @@ function DashboardView({ dark, currentUser }: { dark:boolean; currentUser:User }
   const chartData = stats && stats.monthlyTrend.length > 0 ? stats.monthlyTrend : MONTHLY
   const sourcesData = stats && stats.sourceBreakdown.length > 0 ? stats.sourceBreakdown : SOURCES
 
-  const handleAI = async () => {
+  const handleAI = () => { setAiOpen(true) }
+  const handleAI_old = async () => {
     setGenerating(true); setSummaryText('')
     const revenueStr = stats ? fmtRevenue(stats.revenueThisMonth) : 'Rp 265 juta'
     const convStr = stats ? `${stats.conversionRate}%` : '32.4%'
