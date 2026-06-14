@@ -73,7 +73,7 @@ export function useAttendance(staffId?: string) {
   useEffect(() => {
     fetchRecords()
     const channel = supabase
-      .channel('attendance-realtime')
+      .channel(`attendance-realtime-${Date.now()}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'attendance' }, fetchRecords)
       .subscribe()
     return () => { supabase.removeChannel(channel) }

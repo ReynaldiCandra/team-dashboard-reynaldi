@@ -82,7 +82,7 @@ export function useClosings(teamFilter?: string, staffFilter?: string) {
 
   useEffect(() => {
     fetchData()
-    const ch = supabase.channel('closings-rt')
+    const ch = supabase.channel(`closings-rt-${Date.now()}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'closings' }, fetchData)
       .subscribe()
     return () => { supabase.removeChannel(ch) }

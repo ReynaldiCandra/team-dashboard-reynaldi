@@ -83,7 +83,7 @@ export function usePerformance(staffId?: string) {
   useEffect(() => {
     fetchRecords()
     const channel = supabase
-      .channel('performance-realtime')
+      .channel(`performance-realtime-${Date.now()}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'performances' }, fetchRecords)
       .subscribe()
     return () => { supabase.removeChannel(channel) }

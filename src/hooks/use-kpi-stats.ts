@@ -114,9 +114,9 @@ export function useKpiStats(teamFilter?: string, monthFilter?: number, yearFilte
 
   useEffect(() => {
     fetchStats()
-    const ch1 = supabase.channel('kpi-leads').on('postgres_changes',{event:'*',schema:'public',table:'leads'},fetchStats).subscribe()
-    const ch2 = supabase.channel('kpi-closings').on('postgres_changes',{event:'*',schema:'public',table:'closings'},fetchStats).subscribe()
-    const ch3 = supabase.channel('kpi-perf').on('postgres_changes',{event:'*',schema:'public',table:'performances'},fetchStats).subscribe()
+    const ch1 = supabase.channel(`kpi-leads-${Date.now()}`).on('postgres_changes',{event:'*',schema:'public',table:'leads'},fetchStats).subscribe()
+    const ch2 = supabase.channel(`kpi-closings-${Date.now()}`).on('postgres_changes',{event:'*',schema:'public',table:'closings'},fetchStats).subscribe()
+    const ch3 = supabase.channel(`kpi-perf-${Date.now()}`).on('postgres_changes',{event:'*',schema:'public',table:'performances'},fetchStats).subscribe()
     return () => { supabase.removeChannel(ch1); supabase.removeChannel(ch2); supabase.removeChannel(ch3) }
   }, [fetchStats])
 

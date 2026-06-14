@@ -73,7 +73,7 @@ export function useNotifications(userId?: string) {
   useEffect(() => {
     fetchNotifications()
     const channel = supabase
-      .channel('notifications-realtime')
+      .channel(`notifications-realtime-${Math.random()}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications' }, fetchNotifications)
       .subscribe()
     return () => { supabase.removeChannel(channel) }

@@ -131,7 +131,7 @@ export function useDailyReports(reporterId?: string) {
   useEffect(() => {
     fetchReports()
     const channel = supabase
-      .channel('daily-reports-realtime')
+      .channel(`daily-reports-realtime-${Date.now()}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_reports' }, fetchReports)
       .subscribe()
     return () => { supabase.removeChannel(channel) }

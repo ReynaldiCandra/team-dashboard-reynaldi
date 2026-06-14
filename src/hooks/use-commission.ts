@@ -138,7 +138,7 @@ export function useClosings(staffId?: string, periodMonth?: string) {
   useEffect(() => {
     fetchClosings()
     const channel = supabase
-      .channel('closings-realtime')
+      .channel(`closings-realtime-${Date.now()}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'closings' }, fetchClosings)
       .subscribe()
     return () => { supabase.removeChannel(channel) }

@@ -96,7 +96,7 @@ export function useLeads(assignedTo?: string, teamFilter?: string) {
   useEffect(() => {
     fetchLeads()
     const channel = supabase
-      .channel('leads-realtime')
+      .channel(`leads-realtime-${Date.now()}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'leads' }, fetchLeads)
       .subscribe()
     return () => { supabase.removeChannel(channel) }

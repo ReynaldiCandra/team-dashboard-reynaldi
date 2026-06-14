@@ -39,7 +39,7 @@ export function useActivityLogs(team?: string) {
 
   useEffect(() => {
     fetch()
-    const ch = supabase.channel('activity-realtime')
+    const ch = supabase.channel(`activity-realtime-${Date.now()}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'activity_logs' }, fetch)
       .subscribe()
     return () => { supabase.removeChannel(ch) }
