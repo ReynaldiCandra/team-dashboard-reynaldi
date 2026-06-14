@@ -9,6 +9,7 @@ import { useNotifications } from '@/hooks/use-notifications'
 import { useKpiStats } from '@/hooks/use-kpi-stats'
 import { useStreak } from '@/hooks/useStreak'
 import { useTasks } from '@/hooks/use-tasks'
+import { createClient } from '@/lib/supabase/client'
 
 
 export default function MobileDashboardWrapper() {
@@ -27,6 +28,11 @@ export default function MobileDashboardWrapper() {
   const { stats } = useKpiStats(teamFilter)
   const { streak } = useStreak(userId)
   const { tasks, toggleTask } = useTasks(userId)
+  const supabase = createClient()
+  async function handleLogout() {
+    await supabase.auth.signOut()
+    window.location.href = '/login'
+  }
 
   const leads = useMemo(
     () =>
@@ -134,6 +140,7 @@ export default function MobileDashboardWrapper() {
       onAddLead={handleAddLead}
       tasks={tasks}
       onToggleTask={toggleTask}
+      onLogout={handleLogout}
       onMarkNotifsRead={async () => { await markAllRead?.() }}
       joinedAt={user?.created_at}
     />
