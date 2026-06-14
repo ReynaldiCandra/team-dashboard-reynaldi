@@ -35,6 +35,7 @@ import { usePresence } from '@/hooks/use-presence'
 import { useActivityLogs } from '@/hooks/use-activity'
 import ClosingPage from '@/components/pages/ClosingPage'
 import { useLeaderboard } from '@/hooks/use-leaderboard'
+import { useTasks } from '@/hooks/use-tasks'
 import { createClient } from '@/lib/supabase/client'
 import type { Lead as DBLead, LeadCategory } from '@/hooks/use-leads'
 import { useNotifications } from '@/hooks/use-notifications'
@@ -336,6 +337,7 @@ function DashboardView({ dark, currentUser }: { dark:boolean; currentUser:User }
   const { stats, changes, loading: kpiLoading } = useKpiStats(teamFilter, selectedMonth, selectedYear)
   const { data: leaderboard } = useLeaderboard(isHeadRole ? undefined : currentUser?.team)
   const { logs: activityLogs } = useActivityLogs(isHeadRole ? undefined : currentUser?.team)
+  const { tasks: dailyTasks, toggleTask: toggleDailyTask, addTask } = useTasks(currentUser?.id ?? '')
   const card = dark ? 'bg-[#111d35] border-[#1e2d4a]' : 'bg-white border-slate-200'
   const text = dark ? 'text-slate-100' : 'text-slate-800'
   const muted = dark ? 'text-slate-400' : 'text-slate-500'
@@ -504,7 +506,25 @@ function DashboardView({ dark, currentUser }: { dark:boolean; currentUser:User }
       </div>
 
       {/* AI Summary + Activity */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Daily Tasks Card */}
+        <Card dark={dark} className="p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div><h3 className={`font-bold ${text}`}>✅ Task Hari Ini</h3><p className={`text-xs ${muted}`}>{dailyTasks.filter(t=>t.done).length}/{dailyTasks.length} selesai</p></div>
+          </div>
+          <div className="space-y-2">
+            {dailyTasks.map(t => (
+              <button key={t.id} onClick={() => toggleDailyTask(t.id, !t.done)}
+                className={`w-full flex items-center gap-3 p-2.5 rounded-xl transition-all text-left ${dark?"hover:bg-[#1e2d4a]":"hover:bg-slate-50"}`}>
+                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${t.done?"bg-blue-500 border-blue-500":dark?"border-slate-600":"border-slate-300"}`}>
+                {t.done && <span className="text-white text-[10px]">✓</span>}
+                </div>
+                <p className={`flex-1 text-xs ${t.done?`line-through ${muted}`:text}`}>{t.title}</p>
+                <div className={`w-1.5 h-4 rounded-full ${t.priority==="high"?"bg-red-400":t.priority==="medium"?"bg-yellow-400":"bg-slate-300"}`}/>
+              </button>
+            ))}
+          </div>
+        </Card>
         <Card dark={dark} className="p-5">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">

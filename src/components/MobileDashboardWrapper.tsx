@@ -8,6 +8,8 @@ import { useLeaderboard } from '@/hooks/use-leaderboard'
 import { useNotifications } from '@/hooks/use-notifications'
 import { useKpiStats } from '@/hooks/use-kpi-stats'
 import { useStreak } from '@/hooks/useStreak'
+import { useTasks } from '@/hooks/use-tasks'
+
 
 export default function MobileDashboardWrapper() {
   const { user } = useAuth()
@@ -24,6 +26,7 @@ export default function MobileDashboardWrapper() {
   const { notifications: rawNotifs, markAllRead } = useNotifications(userId)
   const { stats } = useKpiStats(teamFilter)
   const { streak } = useStreak(userId)
+  const { tasks, toggleTask } = useTasks(userId)
 
   const leads = useMemo(
     () =>
@@ -129,6 +132,8 @@ export default function MobileDashboardWrapper() {
       chartData={chartData}
       streak={streak}
       onAddLead={handleAddLead}
+      tasks={tasks}
+      onToggleTask={toggleTask}
       onMarkNotifsRead={async () => { await markAllRead?.() }}
       joinedAt={user?.created_at}
     />
