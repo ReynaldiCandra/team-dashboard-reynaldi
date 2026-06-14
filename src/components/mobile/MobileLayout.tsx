@@ -11,6 +11,8 @@ import { NotifPanel } from "./NotifPanel";
 import { FabAddLead } from "./FabAddLead";
 import { Confetti } from "./Confetti";
 import { MobileProfilePage } from "./MobileProfilePage";
+import { MobileLeaderboardPage } from "./MobileLeaderboardPage";
+import { MobileReportPage } from "./MobileReportPage";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 interface Lead {
@@ -272,7 +274,23 @@ export function MobileLayout({
         )}
 
         {/* Placeholder for other tabs */}
-        {!["home", "leads", "wa", "schedule", "profile"].includes(activeTab) && (
+        {activeTab === "reports" && (
+          <MobileReportPage
+            dark={dark}
+            currentUser={{ id: userId, name: userName, role: userRole, team: userTeam }}
+            onBack={() => go("home")}
+          />
+        )}
+
+        {activeTab === "leaderboard" && (
+          <MobileLeaderboardPage
+            dark={dark}
+            currentUser={{ id: userId, name: userName, role: userRole, team: userTeam }}
+            onBack={() => go("home")}
+          />
+        )}
+
+        {!["home", "leads", "wa", "schedule", "profile", "leaderboard"].includes(activeTab) && (
           <div className="flex-1 flex flex-col">
             <div className="bg-gradient-to-br from-blue-600 to-indigo-800 px-5 pt-12 pb-6">
               <div className="flex items-center gap-3">
