@@ -111,6 +111,7 @@ export default function MobileDashboardWrapper() {
       streak={streak}
       onAddLead={handleAddLead}
       onMarkNotifsRead={async () => { await markAllRead?.() }}
+      joinedAt={user?.created_at}
     />
   )
 }

@@ -10,6 +10,7 @@ import { SlideMenu } from "./SlideMenu";
 import { NotifPanel } from "./NotifPanel";
 import { FabAddLead } from "./FabAddLead";
 import { Confetti } from "./Confetti";
+import { MobileProfilePage } from "./MobileProfilePage";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 interface Lead {
@@ -78,6 +79,8 @@ interface MobileLayoutProps {
   onAddLead: (data: { name: string; child_name: string; phone: string; area: string; category: "HOT" | "WARM" | "COLD" }) => Promise<void>;
   onToggleTask?: (taskId: string, done: boolean) => Promise<void>;
   onMarkNotifsRead?: () => Promise<void>;
+  joinedAt?: string;
+  onLogout?: () => Promise<void>;
 }
 
 // ── Bottom nav config ──────────────────────────────────────────────────────
@@ -97,7 +100,7 @@ export function MobileLayout({
   leads = [], tasks: propTasks = [], leaderboard = [],
   notifications: propNotifs = [],
   kpiDone = 0, kpiTarget = 10, chartData, streak = 0,
-  onAddLead, onToggleTask, onMarkNotifsRead,
+  onAddLead, onToggleTask, onMarkNotifsRead, onLogout, joinedAt,
 }: MobileLayoutProps) {
   const [activeTab, setActiveTab] = useState<Tab>("home");
   const [dark, setDark] = useState(false);
@@ -293,24 +296,21 @@ export function MobileLayout({
         )}
 
         {activeTab === "profile" && (
-          <div className="flex-1 flex flex-col">
-            <div className="bg-gradient-to-br from-blue-600 to-indigo-800 px-5 pt-12 pb-6">
-              <h2 className="text-white font-bold text-lg">Profil Saya</h2>
-            </div>
-            <div className="flex-1 flex flex-col items-center justify-center p-6">
-              <div className="w-20 h-20 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center text-white font-bold text-3xl mb-3">
-                {userName.charAt(0)}
-              </div>
-              <p className={`text-base font-bold ${dark ? "text-white" : "text-slate-800"}`}>{userName}</p>
-              <p className={`text-sm ${mt}`}>{userRole} · {userTeam}</p>
-              {streak > 0 && (
-                <div className="flex items-center gap-1.5 mt-2 px-3 py-1.5 bg-orange-50 rounded-full">
-                  <span className="text-orange-500">🔥</span>
-                  <span className="text-orange-600 text-xs font-semibold">{streak} hari streak aktif!</span>
-                </div>
-              )}
-            </div>
-          </div>
+          <MobileProfilePage
+            userId={userId}
+            userName={userName}
+            userRole={userRole}
+            userTeam={userTeam}
+            totalLeads={leads.length}
+            totalClosing={kpiDone}
+            totalHot={leads.filter(l => l.category === 'HOT').length}
+            streak={streak}
+            dark={dark}
+            onToggleDark={() => setDark(d => !d)}
+            joinedAt={joinedAt}
+            onLogout={onLogout}
+            onNavigate={go}
+          />
         )}
       </div>
 
