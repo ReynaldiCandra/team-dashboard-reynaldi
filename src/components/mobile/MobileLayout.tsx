@@ -244,8 +244,10 @@ export function MobileLayout({
           <MobileLeadsPage
             leads={leads}
             dark={dark}
+            currentUser={{ id: userId, name: userName, role: userRole, team: userTeam }}
             onBack={() => go("home")}
             onOpenScript={handleOpenScript}
+            onLeadAdded={() => {}}
           />
         )}
 

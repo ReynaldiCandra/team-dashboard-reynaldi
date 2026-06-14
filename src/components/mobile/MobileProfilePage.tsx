@@ -21,7 +21,15 @@ interface ProfilePageProps {
   onToggleDark?: () => void;
   onLogout?: () => void;
   joinedAt?: string;
+
   onNavigate?: (tab: string) => void;
+}
+
+function formatJoinDate(d?: string) {
+  if (!d) return '-'
+  const dt = new Date(d)
+  const m = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember']
+  return `${String(dt.getDate()).padStart(2,'0')}-${m[dt.getMonth()]}-${dt.getFullYear()}`
 }
 
 export function MobileProfilePage({
@@ -127,6 +135,9 @@ export function MobileProfilePage({
             <h2 className="text-white font-bold text-xl">{userName}</h2>
             <p className="text-white/70 text-sm">{userRole}</p>
             <span className="mt-1 inline-block px-3 py-0.5 bg-white/20 rounded-full text-white/90 text-xs font-medium">{userTeam}</span>
+            {joinedAt && (
+              <p className="text-white/60 text-xs mt-2">📅 Bergabung {formatJoinDate(joinedAt)}</p>
+            )}
           </div>
         </div>
       </div>

@@ -11,40 +11,62 @@ import { useStreak } from '@/hooks/useStreak'
 
 export default function MobileDashboardWrapper() {
   const { user } = useAuth()
+  const u = user as any
 
-  const { leads: rawLeads, createLead } = useLeads()
-  const { data: rawBoard } = useLeaderboard()
-  const { notifications: rawNotifs, markAllRead } = useNotifications()
-  const { stats } = useKpiStats()
-  const { streak } = useStreak(user?.id)
+  const userRole = u?.role ?? 'staff'
+  const userTeam = u?.team ?? null
+  const userId   = user?.id ?? ''
+
+  // Filter leads sesuai role
+  const teamFilter = userRole === 'head_manager' ? undefined : userTeam ?? undefined
+  const { leads: rawLeads, createLead } = useLeads(teamFilter)
+  const { data: rawBoard } = useLeaderboard(userRole === 'head_manager' ? undefined : userTeam ?? undefined)
+  const { notifications: rawNotifs, markAllRead } = useNotifications(userId)
+  const { stats } = useKpiStats(teamFilter)
+  const { streak } = useStreak(userId)
 
   const leads = useMemo(
     () =>
-      (rawLeads ?? []).map((l: any) => ({
-        id: l.id ?? '',
-        name: l.parent_name ?? l.parentName ?? '',
-        phone: l.parent_phone ?? l.parentPhone ?? '',
-        child_name: l.child_name ?? l.childName ?? '',
-        category: (l.category ?? 'COLD') as 'HOT' | 'WARM' | 'COLD',
-        status: l.status ?? 'baru',
-        area: l.parent_area ?? l.parentArea ?? '',
-        assigned_to: l.assigned_to ?? l.assignedTo ?? '',
-        team: l.team ?? null,
-        created_at: l.created_at ?? l.createdAt ?? new Date().toISOString(),
-        last_contact_at: l.last_contact_at ?? null,
-        follow_up_date: l.follow_up_date ?? null,
-      })),
-    [rawLeads]
+      (rawLeads ?? [])
+        .filter((l: any) => {
+          // staff hanya lihat lead milik sendiri
+          if (userRole === 'staff') return (l.assigned_to ?? l.assignedTo) === userId
+          // manager lihat semua lead timnya (sudah difilter by teamFilter di useLeads)
+          return true
+        })
+        .map((l: any) => ({
+          id:             l.id ?? '',
+          name:           l.parent_name ?? l.parentName ?? '',
+          phone:          l.parent_phone ?? l.parentPhone ?? '',
+          child_name:     l.child_name ?? l.childName ?? '',
+          category:       ((l.lead_category ?? l.leadCategory ?? l.category ?? 'COLD') as 'HOT' | 'WARM' | 'COLD' | 'FREEZE'),
+          leadCategory:   (l.lead_category ?? l.leadCategory ?? l.category ?? 'COLD'),
+          status:         l.status ?? 'baru',
+          area:           l.parent_area ?? l.parentArea ?? '',
+          assigned_to:    l.assigned_to ?? l.assignedTo ?? '',
+          team:           l.team ?? null,
+          created_at:     l.created_at ?? l.createdAt ?? new Date().toISOString(),
+          last_contact_at: l.last_contact_at ?? null,
+          follow_up_date: l.follow_up_date ?? null,
+          // Data tambahan untuk detail view
+          childGender:    l.child_gender ?? l.childGender ?? '',
+          childClass:     l.child_class ?? l.childClass ?? '',
+          hasSibling:     l.has_sibling ?? l.hasSibling ?? false,
+          source:         l.source ?? '',
+          interestRating: l.interest_rating ?? l.interestRating ?? 0,
+          notes:          l.notes ?? '',
+        })),
+    [rawLeads, userId, userRole]
   )
 
   const leaderboard = useMemo(
     () =>
       (rawBoard ?? []).map((e: any) => ({
-        id: e.id ?? e.user_id ?? '',
-        name: e.name ?? e.staff_name ?? '',
-        team: e.team ?? '',
-        points: e.points ?? e.score ?? e.closing_count ?? 0,
-        closing_count: e.closing_count ?? 0,
+        id:            e.id ?? e.user_id ?? e.userId ?? '',
+        name:          e.name ?? e.full_name ?? e.staff_name ?? '',
+        team:          e.team ?? '',
+        points:        e.points ?? e.score ?? e.closing_count ?? 0,
+        closing_count: e.closing_count ?? e.closing ?? 0,
       })),
     [rawBoard]
   )
@@ -52,18 +74,18 @@ export default function MobileDashboardWrapper() {
   const notifications = useMemo(
     () =>
       (rawNotifs ?? []).map((n: any) => ({
-        id: n.id ?? '',
-        message: n.message ?? n.body ?? '',
+        id:         n.id ?? '',
+        message:    n.message ?? n.body ?? '',
         created_at: n.created_at ?? new Date().toISOString(),
-        read: n.read ?? n.is_read ?? false,
-        from: (n.from ?? n.sender_role ?? 'Sistem') as 'Manager' | 'Head Manager' | 'Sistem',
+        read:       n.read ?? n.is_read ?? false,
+        from:       (n.from ?? n.sender_role ?? 'Sistem') as 'Manager' | 'Head Manager' | 'Sistem',
       })),
     [rawNotifs]
   )
 
   const s = stats as any
-  const kpiDone = s?.closing_count ?? s?.closingCount ?? leads.filter(l => l.status === 'closing').length
-  const kpiTarget = s?.target ?? s?.kpi_target ?? 10
+  const kpiDone   = s?.closingThisMonth ?? s?.closing_count ?? s?.closingCount ?? leads.filter(l => l.status === 'closing').length
+  const kpiTarget = s?.target ?? s?.kpi_target ?? 5
 
   const chartData = useMemo(() => {
     const days = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min']
@@ -77,32 +99,29 @@ export default function MobileDashboardWrapper() {
   }, [leads])
 
   async function handleAddLead(data: {
-    name: string
-    child_name: string
-    phone: string
-    area: string
-    category: 'HOT' | 'WARM' | 'COLD'
+    name: string; child_name: string; phone: string; area: string; category: 'HOT' | 'WARM' | 'COLD'
   }) {
     await (createLead as any)?.({
-      parentName: data.name,
+      parentName:  data.name,
       parentPhone: data.phone,
-      childName: data.child_name,
-      parentArea: data.area,
-      status: 'new',
-      source: 'WhatsApp',
+      childName:   data.child_name,
+      parentArea:  data.area,
+      leadCategory: data.category,
+      status:      'new',
+      source:      'WhatsApp',
+      team:        userTeam,
+      assignedTo:  userId,
     })
   }
 
-  const u = user as any
-
   return (
     <MobileLayout
-      userId={user?.id ?? ''}
-      userName={u?.name ?? user?.email?.split('@')[0] ?? 'Staff'}
-      userRole={u?.role ?? 'Staff Marketing'}
-      userTeam={u?.team ?? 'Tim Alexandria'}
-      staffName={u?.name ?? 'Staff Marketing'}
-      leads={leads}
+      userId={userId}
+      userName={u?.name ?? u?.full_name ?? user?.email?.split('@')?.[0] ?? 'Staff'}
+      userRole={userRole}
+      userTeam={userTeam ?? 'Tim Alexandria'}
+      staffName={u?.name ?? u?.full_name ?? 'Staff Marketing'}
+      leads={leads as any}
       leaderboard={leaderboard}
       notifications={notifications}
       kpiDone={kpiDone}

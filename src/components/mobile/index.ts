@@ -3,6 +3,8 @@ export { MobileHomePage } from "./MobileHomePage";
 export { MobileLeadsPage } from "./MobileLeadsPage";
 export { WAScriptPage } from "./WAScriptPage";
 export { SchedulePage } from "./SchedulePage";
+export { MobileKpiPage } from "./MobileKpiPage";
+export { MobileClosingPage } from "./MobileClosingPage";
 export { SlideMenu } from "./SlideMenu";
 export { NotifPanel } from "./NotifPanel";
 export { FabAddLead } from "./FabAddLead";

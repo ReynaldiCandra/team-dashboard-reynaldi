@@ -10,6 +10,8 @@ interface MobileLeadsPageProps {
   dark?: boolean;
   onBack: () => void;
   onOpenScript: (lead: Lead) => void;
+  currentUser?: { id: string; name: string; role: string; team: string };
+  onLeadAdded?: () => void;
 }
 
 type Filter = "All" | "HOT" | "WARM" | "COLD";
@@ -25,7 +27,7 @@ const CAT_ICON: Record<string, React.ReactNode> = {
   COLD: <Snowflake size={10} />,
 };
 
-export function MobileLeadsPage({ leads, dark = false, onBack, onOpenScript }: MobileLeadsPageProps) {
+export function MobileLeadsPage({ leads, dark = false, onBack, onOpenScript, currentUser, onLeadAdded }: MobileLeadsPageProps) {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<Filter>("All");
 
