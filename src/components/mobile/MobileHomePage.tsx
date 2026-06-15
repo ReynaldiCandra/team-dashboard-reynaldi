@@ -69,10 +69,10 @@ const PRI_COLOR: Record<string, string> = {
 const MENU_ITEMS = [
   { icon: CheckSquare, label: "Tasks",       color: "bg-purple-500", tab: "tasks" },
   { icon: BarChart2,   label: "KPI",         color: "bg-orange-500", tab: "kpi" },
-  { icon: Target,      label: "Goals",       color: "bg-indigo-500", tab: "kpi" },
+  { icon: Target,      label: "Goals",       color: "bg-indigo-500", tab: "goals" },
   { icon: Award,       label: "Ranking",     color: "bg-yellow-500", tab: "leaderboard" },
   { icon: Calendar,    label: "Jadwal",      color: "bg-pink-500",   tab: "schedule" },
-  { icon: Activity,    label: "Aktivitas",   color: "bg-teal-500",   tab: "reports" },
+  { icon: Activity,    label: "Aktivitas",   color: "bg-teal-500",   tab: "activity" },
   { icon: FileText,    label: "Laporan",     color: "bg-blue-400",   tab: "reports" },
   { icon: Phone,       label: "Broadcast",   color: "bg-rose-500",   tab: "broadcast" },
   { icon: Gift,        label: "Promo",       color: "bg-green-400",  tab: "promo" },
