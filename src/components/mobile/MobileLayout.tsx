@@ -78,6 +78,8 @@ interface MobileLayoutProps {
   streak?: number;
 
   // Callbacks — wire these to your existing Supabase mutations
+  onUpdateLead?: (leadId: string, updates: { category?: string; status?: string; notes?: string }) => Promise<void>;
+  onDeleteLead?: (leadId: string) => Promise<void>;
   onAddLead: (data: { name: string; child_name: string; phone: string; area: string; category: "HOT" | "WARM" | "COLD" }) => Promise<void>;
   onToggleTask?: (taskId: string, done: boolean) => Promise<void>;
   onMarkNotifsRead?: () => Promise<void>;
