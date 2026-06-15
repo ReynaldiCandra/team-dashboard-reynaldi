@@ -13,8 +13,8 @@ import { Confetti } from "./Confetti";
 import { MobileProfilePage } from "./MobileProfilePage";
 import { MobileLeaderboardPage } from "./MobileLeaderboardPage";
 import { MobileReportPage } from "./MobileReportPage";
+import { MobileKpiPage } from "./MobileKpiPage";
 
-// ── Types ──────────────────────────────────────────────────────────────────
 interface Lead {
   id: string;
   name: string;
@@ -54,57 +54,52 @@ interface Notification {
 }
 
 interface MobileLayoutProps {
-  // User info — pass from your session/auth hook
   userId: string;
   userName: string;
   userRole: string;
   userTeam: string;
   staffName?: string;
 
-  // Data — pass from your existing hooks (useLeads, useLeaderboard, etc.)
   leads: Lead[];
   tasks?: Task[];
   leaderboard?: LeaderboardEntry[];
   notifications?: Notification[];
 
-  // KPI data
   kpiDone?: number;
   kpiTarget?: number;
-
-  // Chart data (leads per day, 7 days)
   chartData?: { day: string; val: number }[];
-
-  // Streak count (from useStreak hook)
   streak?: number;
 
-  // Callbacks — wire these to your existing Supabase mutations
+  onAddLead: (data: { name: string; child_name: string; phone: string; area: string; category: "HOT" | "WARM" | "COLD" }) => Promise<void>;
+  // ✅ Tambah callback update/delete lead
   onUpdateLead?: (leadId: string, updates: { category?: string; status?: string; notes?: string }) => Promise<void>;
   onDeleteLead?: (leadId: string) => Promise<void>;
-  onAddLead: (data: { name: string; child_name: string; phone: string; area: string; category: "HOT" | "WARM" | "COLD" }) => Promise<void>;
   onToggleTask?: (taskId: string, done: boolean) => Promise<void>;
   onMarkNotifsRead?: () => Promise<void>;
   joinedAt?: string;
   onLogout?: () => Promise<void>;
 }
 
-// ── Bottom nav config ──────────────────────────────────────────────────────
 const NAV_TABS = [
-  { tab: "home",     Icon: Home,          label: "Home"      },
-  { tab: "leads",    Icon: Users,         label: "Leads"     },
+  { tab: "home",     Icon: Home,          label: "Home"       },
+  { tab: "leads",    Icon: Users,         label: "Leads"      },
   { tab: "wa",       Icon: MessageCircle, label: "Script WA", center: true },
-  { tab: "schedule", Icon: Calendar,      label: "Jadwal"    },
-  { tab: "profile",  Icon: User,          label: "Profil"    },
+  { tab: "schedule", Icon: Calendar,      label: "Jadwal"     },
+  { tab: "profile",  Icon: User,          label: "Profil"     },
 ] as const;
 
 type Tab = typeof NAV_TABS[number]["tab"] | string;
 
-// ── Main Component ─────────────────────────────────────────────────────────
+// ✅ Semua tab yang sudah punya halaman nyata
+const HANDLED_TABS = ["home", "leads", "wa", "schedule", "profile", "leaderboard", "reports", "kpi", "tasks", "broadcast", "promo", "guide"];
+
 export function MobileLayout({
   userId, userName, userRole, userTeam, staffName,
   leads = [], tasks: propTasks = [], leaderboard = [],
   notifications: propNotifs = [],
   kpiDone = 0, kpiTarget = 10, chartData, streak = 0,
-  onAddLead, onToggleTask, onMarkNotifsRead, onLogout, joinedAt,
+  onAddLead, onUpdateLead, onDeleteLead,
+  onToggleTask, onMarkNotifsRead, onLogout, joinedAt,
 }: MobileLayoutProps) {
   const [activeTab, setActiveTab] = useState<Tab>("home");
   const [dark, setDark] = useState(false);
@@ -117,7 +112,6 @@ export function MobileLayout({
   const [search, setSearch] = useState("");
   const [scriptLead, setScriptLead] = useState<Lead | null>(null);
 
-  // Sync props → state only when parent data actually changes
   const prevNotifsRef = useRef(propNotifs);
   useEffect(() => {
     if (prevNotifsRef.current !== propNotifs) {
@@ -185,19 +179,60 @@ export function MobileLayout({
 
   const user = { name: userName, role: userRole, team: userTeam };
 
+  // Tasks page sederhana (inline)
+  const renderTasksPage = () => (
+    <div className="flex-1 overflow-y-auto pb-20">
+      <div className="bg-gradient-to-br from-violet-600 to-purple-700 px-5 pt-12 pb-6">
+        <div className="flex items-center gap-3 mb-2">
+          <button onClick={() => go("home")} className="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center text-white">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15,18 9,12 15,6"/></svg>
+          </button>
+          <div>
+            <h2 className="text-white font-bold text-lg">Tasks</h2>
+            <p className="text-white/70 text-xs">{tasks.filter(t => !t.done).length} tugas aktif</p>
+          </div>
+        </div>
+      </div>
+      <div className="p-4 space-y-3">
+        {tasks.length === 0 && (
+          <div className={`text-center py-12 ${mt}`}>
+            <p className="text-sm font-medium">Tidak ada tasks</p>
+          </div>
+        )}
+        {tasks.map((t) => (
+          <div key={t.id} className={`${dark ? "bg-[#111d35] border-[#1e2d4a]" : "bg-white border-slate-100"} border rounded-2xl p-4 flex items-center gap-3`}>
+            <button
+              onClick={() => handleToggleTask(t.id)}
+              className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${
+                t.done ? "bg-green-500 border-green-500" : dark ? "border-slate-500" : "border-slate-300"
+              }`}
+            >
+              {t.done && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3"><polyline points="20,6 9,17 4,12"/></svg>}
+            </button>
+            <div className="flex-1">
+              <p className={`text-sm font-medium ${t.done ? "line-through opacity-50" : dark ? "text-slate-100" : "text-slate-800"}`}>{t.title}</p>
+              <span className={`text-[10px] px-2 py-0.5 rounded-full ${
+                t.priority === "high" ? "bg-red-100 text-red-600" :
+                t.priority === "medium" ? "bg-orange-100 text-orange-600" :
+                "bg-slate-100 text-slate-500"
+              }`}>{t.priority}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
   return (
     <div className={`relative h-full w-full ${bg} overflow-hidden flex flex-col`}>
-      {/* ── Confetti ── */}
       <Confetti active={confetti} />
 
-      {/* ── Toast ── */}
       {toast && (
         <div className="absolute top-14 left-1/2 -translate-x-1/2 z-[60] bg-slate-800 text-white text-xs px-4 py-2 rounded-full shadow-lg whitespace-nowrap pointer-events-none">
           {toast}
         </div>
       )}
 
-      {/* ── Overlays ── */}
       {notifOpen && (
         <NotifPanel
           notifications={notifs as any}
@@ -215,9 +250,10 @@ export function MobileLayout({
         onToggleDark={() => setDark((d) => !d)}
         user={user}
         streak={streak}
+        onLogout={onLogout}
       />
 
-      {/* ── Pages ── */}
+      {/* Pages */}
       <div className="flex-1 overflow-hidden flex flex-col">
         {activeTab === "home" && (
           <MobileHomePage
@@ -251,6 +287,8 @@ export function MobileLayout({
             currentUser={{ id: userId, name: userName, role: userRole, team: userTeam }}
             onBack={() => go("home")}
             onOpenScript={handleOpenScript}
+            onUpdateLead={onUpdateLead}
+            onDeleteLead={onDeleteLead}
             onLeadAdded={() => {}}
           />
         )}
@@ -275,7 +313,6 @@ export function MobileLayout({
           />
         )}
 
-        {/* Placeholder for other tabs */}
         {activeTab === "reports" && (
           <MobileReportPage
             dark={dark}
@@ -292,7 +329,38 @@ export function MobileLayout({
           />
         )}
 
-        {!["home", "leads", "wa", "schedule", "profile", "leaderboard"].includes(activeTab) && (
+        {/* ✅ KPI & Performa page */}
+        {activeTab === "kpi" && (
+          <MobileKpiPage
+            dark={dark}
+            currentUser={{ id: userId, name: userName, role: userRole, team: userTeam }}
+            onBack={() => go("home")}
+          />
+        )}
+
+        {/* ✅ Tasks page */}
+        {activeTab === "tasks" && renderTasksPage()}
+
+        {activeTab === "profile" && (
+          <MobileProfilePage
+            userId={userId}
+            userName={userName}
+            userRole={userRole}
+            userTeam={userTeam}
+            totalLeads={leads.length}
+            totalClosing={kpiDone}
+            totalHot={leads.filter(l => l.category === 'HOT').length}
+            streak={streak}
+            dark={dark}
+            onToggleDark={() => setDark(d => !d)}
+            joinedAt={joinedAt}
+            onLogout={onLogout}
+            onNavigate={go}
+          />
+        )}
+
+        {/* ✅ Catch-all: hanya untuk tab yang belum dihandle */}
+        {!HANDLED_TABS.includes(activeTab) && (
           <div className="flex-1 flex flex-col">
             <div className="bg-gradient-to-br from-blue-600 to-indigo-800 px-5 pt-12 pb-6">
               <div className="flex items-center gap-3">
@@ -316,32 +384,14 @@ export function MobileLayout({
             </div>
           </div>
         )}
-
-        {activeTab === "profile" && (
-          <MobileProfilePage
-            userId={userId}
-            userName={userName}
-            userRole={userRole}
-            userTeam={userTeam}
-            totalLeads={leads.length}
-            totalClosing={kpiDone}
-            totalHot={leads.filter(l => l.category === 'HOT').length}
-            streak={streak}
-            dark={dark}
-            onToggleDark={() => setDark(d => !d)}
-            joinedAt={joinedAt}
-            onLogout={onLogout}
-            onNavigate={go}
-          />
-        )}
       </div>
 
-      {/* ── FAB ── */}
+      {/* FAB */}
       {["home", "leads"].includes(activeTab) && !menuOpen && !notifOpen && (
         <FabAddLead dark={dark} onAdd={handleAddLead} />
       )}
 
-      {/* ── Bottom Navigation ── */}
+      {/* Bottom Navigation */}
       <div className={`${nav} border-t flex items-center justify-around px-2 py-2 flex-shrink-0`}>
         {(NAV_TABS as unknown as any[]).map(({ tab, Icon, label, center }) =>
           center ? (
