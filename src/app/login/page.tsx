@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Zap, RefreshCw, AlertCircle, Eye, EyeOff } from 'lucide-react'
 import Image from 'next/image'
-import { useAuth } from '@/hooks/use-auth'
+import { useAuthActions } from '@/hooks/use-auth'
 
 const ROLES = ['Pendiri', 'Deputi', 'Head Manager', 'Manager', 'Staff']
 const ROLE_COLORS: Record<string, string> = {
@@ -16,7 +16,7 @@ const ROLE_COLORS: Record<string, string> = {
 }
 
 export default function LoginPage() {
-  const { signInWithPassword } = useAuth()
+  const { signInWithPassword } = useAuthActions()
   const [email, setEmail]       = useState('')
   const [password, setPassword] = useState('')
   const [showPass, setShowPass] = useState(false)

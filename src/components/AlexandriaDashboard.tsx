@@ -12,7 +12,7 @@ import {
   LayoutDashboard, BarChart3, Users, Megaphone, FileText,
   Settings, Bell, ChevronLeft, Sun, Moon, LogOut, Plus,
   Eye, Trash2, TrendingUp, Target, DollarSign, UserPlus,
-  Search, CheckCircle, Clock, Star, Zap, Award, Brain,
+  Search, CheckCircle, Clock, Star, Zap, Award, Brain, Sparkles,
   Calendar, Download, Filter, RefreshCw, MoreHorizontal,
   ArrowUpRight, List, ArrowDownRight, Activity, Clipboard,
   CreditCard, Gift, PieChart as PieIcon, Edit, X, Check,
@@ -36,6 +36,7 @@ import { useActivityLogs } from '@/hooks/use-activity'
 import ClosingPage from '@/components/pages/ClosingPage'
 import { useLeaderboard } from '@/hooks/use-leaderboard'
 import { AISummaryModal } from '@/components/AISummaryModal'
+import { AIMarketingView } from '@/components/AIMarketingView'
 import { useTasks } from '@/hooks/use-tasks'
 import { createClient } from '@/lib/supabase/client'
 import type { Lead as DBLead, LeadCategory } from '@/hooks/use-leads'
@@ -45,7 +46,7 @@ import { usePerformance } from '@/hooks/use-performance'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 type Role = 'owner' | 'deputi' | 'head_manager' | 'manager' | 'staff'
-type View = 'dashboard' | 'leads' | 'performance' | 'team' | 'campaigns' | 'reports' | 'goals' | 'attendance' | 'commission' | 'closing' | 'settings'
+type View = 'dashboard' | 'leads' | 'performance' | 'team' | 'campaigns' | 'reports' | 'goals' | 'attendance' | 'commission' | 'closing' | 'settings' | 'ai-marketing'
 
 type LeadStatus = 'baru' | 'dihubungi' | 'berminat' | 'survey' | 'meeting' | 'proposal' | 'closing' | 'gagal'
 type LeadTemp = 'hot' | 'warm' | 'cold'
@@ -2255,12 +2256,13 @@ const NAV: { icon:React.ComponentType<{size?:number;className?:string}>; label:s
   { icon:Calendar,        label:'Attendance', view:'attendance',  roles:['head_manager','manager','staff'] },
   { icon:CreditCard,      label:'Komisi',     view:'commission',  roles:['head_manager','manager','staff'] },
   { icon:Settings,        label:'Settings',   view:'settings',    roles:['owner','deputi','head_manager'] },
+  { icon:Sparkles,       label:'AI Marketing', view:'ai-marketing', roles:['owner','deputi','head_manager','manager','staff'] },
 ]
 
 const viewTitle: Record<View,string> = {
   dashboard:'Dashboard Overview', leads:'Leads Management', performance:'Input Performa',
   team:'Manajemen Tim', campaigns:'Campaign', reports:'Reports & Analytics',
-  goals:'OKR Goals', attendance:'Attendance & Check-in', commission:'Komisi & Insentif', closing:'Closing', settings:'Pengaturan'
+  goals:'OKR Goals', attendance:'Attendance & Check-in', commission:'Komisi & Insentif', closing:'Closing', settings:'Pengaturan', 'ai-marketing':'AI Marketing'
 }
 
 // ─── Mobile Bottom Nav Items ─────────────────────────────────────────────────
@@ -2524,6 +2526,7 @@ export default function AlexandriaDashboard() {
               {view==='attendance' && <AttendanceView dark={d} currentUser={user}/>}
               {view==='commission' && <CommissionView dark={d} currentUser={user}/>}
               {view==='closing' && <ClosingPage dark={d} currentUser={user}/>}
+              {view==='ai-marketing' && <AIMarketingView dark={d} currentUser={user}/> }
               {view==='settings' && (
                 <Card dark={d} className="p-8 text-center">
                   <Settings size={48} className={`mx-auto mb-3 ${muted}`}/>
