@@ -1,246 +1,192 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { useState, useEffect } from "react";
+import { TrendingUp, DollarSign, Users, Flame, CheckCircle, AlertCircle, XCircle, RefreshCw, Calendar } from "lucide-react";
 
 interface Props {
   dark?: boolean;
   currentUser: { id: string; name: string; role: string; team: string };
 }
 
-type WeekKey = 0 | 1 | 2 | 3 | 4;
-const WEEK_LABELS: Record<WeekKey, string> = { 0:"Prev Month",1:"Week I",2:"Week II",3:"Week III",4:"Week IV" };
-
-const META_FIELDS = [
-  { key:"meta_total_campaign", label:"Total Campaign" },
-  { key:"meta_ad_spend",       label:"Ad Spend",               prefix:"Rp" },
-  { key:"meta_reach",          label:"Reach" },
-  { key:"meta_impression",     label:"Impression" },
-  { key:"meta_ctr",            label:"CTR",                    suffix:"%" },
-  { key:"meta_cpl",            label:"CPL",                    prefix:"Rp" },
-  { key:"meta_lpv",            label:"LPV (Landing Page View)" },
-  { key:"meta_total_leads",    label:"Total Leads CTWA+LP" },
-  { key:"meta_cvr",            label:"Conversion Rate",        suffix:"%" },
-];
-const GOOGLE_FIELDS = [
-  { key:"google_total_campaign", label:"Total Kampanye" },
-  { key:"google_ad_spend",       label:"Ads Spend",            prefix:"Rp" },
-  { key:"google_total_click",    label:"Total Klik" },
-  { key:"google_total_tayangan", label:"Total Tayangan" },
-  { key:"google_ctr",            label:"CTR",                  suffix:"%" },
-  { key:"google_cpc",            label:"CPC",                  prefix:"Rp" },
-  { key:"google_cpa",            label:"Biaya/Konversi (CPA)", prefix:"Rp" },
-  { key:"google_total_leads",    label:"Total Leads" },
-];
-const LEADS_FIELDS = [
-  { key:"lead_sd",     label:"Lead SD" },
-  { key:"lead_smp_fd", label:"Lead SMP FD" },
-  { key:"lead_smp_bd", label:"Lead SMP BD" },
-  { key:"lead_sma_fd", label:"Lead SMA FD" },
-  { key:"lead_sma_bd", label:"Lead SMA BD" },
-  { key:"appointment", label:"Appointment" },
-  { key:"school_tour", label:"School Tour / Open House" },
-];
-const CLOSING_FIELDS = [
-  { key:"closing_sd",     label:"SD" },
-  { key:"revenue_sd",     label:"\u2514 Revenue SD",     prefix:"Rp" },
-  { key:"closing_smp_fd", label:"SMP FD" },
-  { key:"revenue_smp_fd", label:"\u2514 Revenue SMP FD", prefix:"Rp" },
-  { key:"closing_smp_bd", label:"SMP BD" },
-  { key:"revenue_smp_bd", label:"\u2514 Revenue SMP BD", prefix:"Rp" },
-  { key:"closing_sma_fd", label:"SMA FD" },
-  { key:"revenue_sma_fd", label:"\u2514 Revenue SMA FD", prefix:"Rp" },
-  { key:"closing_sma_bd", label:"SMA BD" },
-  { key:"revenue_sma_bd", label:"\u2514 Revenue SMA BD", prefix:"Rp" },
-  { key:"target_closing", label:"Target Closing" },
-];
-
-function currentMonth() { return new Date().toISOString().slice(0, 7); }
-function calcMonthly(data: Record<WeekKey, any>, key: string): number {
-  return ([1,2,3,4] as WeekKey[]).reduce<number>((s, w) => s + (Number(data[w]?.[key]) || 0), 0);
+interface WeeklyReport {
+  id: string; team: string; week_start: string; week_end: string;
+  total_meta_spend: number; total_google_spend: number; total_spend: number;
+  total_meta_leads: number; total_google_leads: number; total_leads: number;
+  total_warms: number; total_hot_leads: number; total_closing: number;
+  days_reported: number; days_expected: number;
+  cpl: number; closing_rate: number; hot_rate: number;
+  status: "green" | "yellow" | "red" | "gray"; status_reason: string;
 }
 
+function fmt(n: number) { return new Intl.NumberFormat("id-ID").format(Math.round(n)); }
+function fmtDate(d: string) {
+  return new Date(d).toLocaleDateString("id-ID", { day: "numeric", month: "short" });
+}
+
+const STATUS_CONFIG = {
+  green:  { icon: CheckCircle,  bg: "bg-emerald-500/15", text: "text-emerald-400", border: "border-emerald-500/30", label: "Sesuai Target" },
+  yellow: { icon: AlertCircle,  bg: "bg-amber-500/15",   text: "text-amber-400",   border: "border-amber-500/30",   label: "Perlu Perhatian" },
+  red:    { icon: XCircle,      bg: "bg-red-500/15",     text: "text-red-400",     border: "border-red-500/30",     label: "Di Bawah Target" },
+  gray:   { icon: AlertCircle,  bg: "bg-slate-500/15",   text: "text-slate-400",   border: "border-slate-500/30",   label: "Belum Ada Data" },
+};
+
 export function WeeklyReportView({ dark = false, currentUser }: Props) {
-  const [month, setMonth] = useState(currentMonth());
-  const [activeWeek, setActiveWeek] = useState<WeekKey>(1);
-  const [data, setData] = useState<Record<WeekKey, any>>({0:{},1:{},2:{},3:{},4:{}});
-  const [saving, setSaving] = useState(false);
+  const [reports, setReports] = useState<WeeklyReport[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState<WeeklyReport | null>(null);
   const [toast, setToast] = useState("");
 
-  const bg   = dark ? "bg-[#0a1020]"   : "bg-gray-50";
-  const card = dark ? "bg-[#111d35] border-[#1e2d4a]" : "bg-white border-slate-100";
-  const tx   = dark ? "text-slate-100" : "text-slate-800";
-  const mt   = dark ? "text-slate-400" : "text-slate-500";
-  const inp  = dark ? "bg-white/5 border-white/10 text-slate-200" : "bg-yellow-50 border-slate-200 text-slate-700";
+  const bg       = dark ? "bg-[#0a1020]"          : "bg-gray-50";
+  const card     = dark ? "bg-[#111d35] border-[#1e2d4a]" : "bg-white border-slate-200";
+  const tx       = dark ? "text-slate-100"         : "text-slate-800";
+  const mt       = dark ? "text-slate-400"         : "text-slate-500";
+  const rowHover = dark ? "hover:bg-white/5"       : "hover:bg-slate-50";
 
-  useEffect(() => { loadAll(); }, [month]);
+  useEffect(() => { load(); }, []);
 
-  async function loadAll() {
-    const sb = createClient();
-    const { data: rows } = await sb
-      .from("weekly_reports")
-      .select("*")
-      .eq("report_month", month)
-      .eq("team", currentUser.team);
-    const result: Record<WeekKey, any> = {0:{},1:{},2:{},3:{},4:{}};
-    (rows ?? []).forEach((r: any) => { result[r.week_number as WeekKey] = r; });
-    setData(result);
+  async function load() {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/weekly-report?limit=8`);
+      const json = await res.json();
+      if (json.error) throw new Error(json.error);
+      const rows: WeeklyReport[] = json.data ?? [];
+      setReports(rows);
+      if (rows.length > 0) setSelected(rows[0]);
+    } catch (e: any) {
+      setToast("❌ " + e.message);
+      setTimeout(() => setToast(""), 3000);
+    } finally { setLoading(false); }
   }
 
-  const setField = useCallback((week: WeekKey, key: string, val: string) => {
-    setData(prev => ({ ...prev, [week]: { ...prev[week], [key]: val === "" ? "" : isNaN(Number(val)) ? val : Number(val) } }));
-  }, []);
-
-  async function saveWeek(week: WeekKey) {
-    setSaving(true);
-    const sb = createClient();
-    const payload = {
-      report_month: month,
-      week_number: week,
-      team: currentUser.team,
-      manager_id: currentUser.id,
-      manager_name: currentUser.name,
-      ...data[week],
-    };
-    const { error } = await sb.from("weekly_reports")
-      .upsert(payload, { onConflict: "report_month,week_number,team" });
-    setSaving(false);
-    setToast(error ? "\u274c " + error.message : "\u2705 " + WEEK_LABELS[week] + " tersimpan!");
-    setTimeout(() => setToast(""), 3000);
-    if (!error) loadAll();
-  }
-
-  const renderSection = (
-    title: string,
-    fields: { key: string; label: string; prefix?: string; suffix?: string }[]
-  ) => (
-    <>
-      <tr>
-        <td colSpan={7} className={`px-3 py-2 text-xs font-bold ${dark ? "bg-orange-900/40 text-orange-300" : "bg-orange-500 text-white"}`}>
-          {title}
-        </td>
-      </tr>
-      {fields.map(({ key, label, prefix, suffix }) => (
-        <tr key={key} className={`border-b ${dark ? "border-white/5 hover:bg-white/5" : "border-slate-50 hover:bg-slate-50"}`}>
-          <td className={`px-3 py-1.5 text-xs ${tx} whitespace-nowrap`}>{label}</td>
-          {([0,1,2,3,4] as WeekKey[]).map(w => (
-            <td key={w} className={`px-1 py-1 ${w === activeWeek || w === 0 ? "" : "opacity-50"}`}>
-              <div className="flex items-center">
-                {prefix && <span className={`text-[10px] px-1 ${mt}`}>{prefix}</span>}
-                <input
-                  type="number" min="0"
-                  value={data[w]?.[key] ?? ""}
-                  onChange={e => setField(w, key, e.target.value)}
-                  className={`w-full px-2 py-1 text-xs rounded border outline-none text-right ${
-                    w === activeWeek || w === 0
-                      ? inp
-                      : dark ? "bg-white/5 border-white/5 text-slate-500" : "bg-slate-50 border-slate-100 text-slate-400"
-                  }`}
-                  placeholder="0"
-                />
-                {suffix && <span className={`text-[10px] px-1 ${mt}`}>{suffix}</span>}
-              </div>
-            </td>
-          ))}
-          <td className={`px-3 py-1 text-xs text-right font-bold ${dark ? "text-green-400" : "text-green-600"}`}>
-            {calcMonthly(data, key) || "-"}
-          </td>
-        </tr>
-      ))}
-    </>
-  );
+  const r = selected;
+  const statusCfg = r ? STATUS_CONFIG[r.status ?? "gray"] : STATUS_CONFIG.gray;
+  const StatusIcon = statusCfg.icon;
 
   return (
-    <div className={`min-h-screen ${bg} p-6`}>
+    <div className={`min-h-screen ${bg} ${tx} p-6`}>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold">Weekly Report</h1>
+          <p className={`text-sm mt-1 ${mt}`}>Tim {currentUser.team} · {currentUser.name}</p>
+        </div>
+        <button onClick={load} className={`p-2 rounded-lg border ${card} ${mt} transition-colors`}>
+          <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
+        </button>
+      </div>
+
       {toast && (
-        <div className="fixed top-5 right-5 z-50 bg-slate-800 text-white text-sm px-4 py-2.5 rounded-xl shadow-lg">
+        <div className="fixed top-4 right-4 z-50 bg-slate-800 text-white px-4 py-2 rounded-lg shadow-lg text-sm">
           {toast}
         </div>
       )}
-      <div className="max-w-7xl mx-auto space-y-5">
-        <div className="flex flex-wrap items-end gap-4">
-          <div>
-            <h1 className={`text-2xl font-bold ${tx}`}>Weekly & Monthly Report</h1>
-            <p className={`text-sm ${mt}`}>Tim {currentUser.team} ·{currentUser.name} · Manager</p>
+
+      {loading ? (
+        <div className="flex items-center justify-center h-64">
+          <RefreshCw size={24} className="animate-spin text-blue-400" />
+        </div>
+      ) : reports.length === 0 ? (
+        <div className={`rounded-xl border ${card} p-12 text-center`}>
+          <Calendar size={40} className={`mx-auto mb-3 ${mt}`} />
+          <p className={mt}>Belum ada data weekly report.</p>
+          <p className={`text-xs mt-1 ${mt}`}>Data muncul otomatis setelah daily report diisi.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-12 gap-5">
+          {/* Sidebar: daftar minggu */}
+          <div className="col-span-3">
+            <p className={`text-xs font-semibold uppercase tracking-wider mb-3 ${mt}`}>Riwayat Minggu</p>
+            <div className="space-y-2">
+              {reports.map((w) => {
+                const cfg = STATUS_CONFIG[w.status ?? "gray"];
+                const isActive = selected?.id === w.id;
+                return (
+                  <button
+                    key={w.id}
+                    onClick={() => setSelected(w)}
+                    className={`w-full text-left px-4 py-3 rounded-xl border transition-all ${
+                      isActive ? `${cfg.bg} ${cfg.border} border` : `${card} ${rowHover}`
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className={`text-xs font-semibold ${isActive ? cfg.text : tx}`}>
+                        {fmtDate(w.week_start)} – {fmtDate(w.week_end)}
+                      </span>
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${cfg.bg} ${cfg.text}`}>
+                        {(w.status ?? "gray").toUpperCase()}
+                      </span>
+                    </div>
+                    <p className={`text-xs mt-1 ${mt}`}>{w.days_reported}/7 hari · {w.total_leads} leads</p>
+                  </button>
+                );
+              })}
+            </div>
           </div>
-          <input
-            type="month" value={month}
-            onChange={e => setMonth(e.target.value)}
-            className={`px-3 py-2 rounded-xl border text-sm outline-none ${dark ? "bg-[#1a2a45] border-[#1e2d4a] text-white" : "bg-white border-slate-200"}`}
-          />
-        </div>
 
-        <div className="flex gap-2 flex-wrap">
-          {([0,1,2,3,4] as WeekKey[]).map(w => (
-            <button key={w} onClick={() => setActiveWeek(w)}
-              className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
-                activeWeek === w
-                  ? "bg-orange-500 text-white shadow"
-                  : dark ? "bg-white/10 text-slate-300 hover:bg-white/15" : "bg-white border boder-slate-200 text-slate-600 hover:bg-orange-50"
-              }`}>
-              {WEEK_LABELS[w]}
-            </button>
-          ))}
-        </div>
+          {/* Main: detail minggu terpilih */}
+          {r && (
+            <div className="col-span-9 space-y-5">
+              {/* Status banner */}
+              <div className={`rounded-xl border p-4 flex items-start gap-3 ${statusCfg.bg} ${statusCfg.border}`}>
+                <StatusIcon size={20} className={`mt-0.5 shrink-0 ${statusCfg.text}`} />
+                <div>
+                  <p className={`font-semibold text-sm ${statusCfg.text}`}>{statusCfg.label}</p>
+                  <p className={`text-xs mt-0.5 ${mt}`}>{r.status_reason || "—"}</p>
+                </div>
+                <span className={`ml-auto text-xs ${mt}`}>
+                  {fmtDate(r.week_start)} – {fmtDate(r.week_end)} · {r.days_reported}/{r.days_expected} hari
+                </span>
+              </div>
 
-        <div className={`${card} border rounded-2xl overflow-hidden`}>
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse min-w-[800px]">
-              <thead>
-                <tr>
-                  <th className="bg-orange-500 text-white text-left px-3 py-2.5 text-xs font-bold w-52">
-                    WEEKLY & MONTHLY REPORT
-                  </th>
-                  {([0,1,2,3,4] as WeekKey[]).map(w => (
-                    <th key={w} className={`px-3 py-2.5 text-xs font-bold text-right ${
-                      w === activeWeek ? "bg-orange-600 text-white" : "bg-orange-500 text-white"
-                    }`}>
-                      {WEEK_LABELS[w]}
-                    </th>
-                  ))}
-                  <th className="bg-green-600 text-white px-3 py-2.5 text-xs font-bold text-right">MONTHLY</th>
-                </tr>
-                <tr className={dark ? "bg-white/5" : "bg-orange-50"}>
-                  <td className={`px-3 py-1.5 text-xs font-semibold ${mt}`}>TIM: {currentUser.team}</td>
-                  <td colSpan={6} className={`px-3 py-1.5 text-xs ${mt}`}>DMM: {currentUser.name}</td>
-                </tr>
-              </thead>
-              <tbody>
-                {renderSection("META ADS", META_FIELDS)}
-                {renderSection("GOOGLE ADS", GOOGLE_FIELDS)}
-                {renderSection("DATA LEADS", LEADS_FIELDS)}
-                {renderSection("DATA CLOSING", CLOSING_FIELDS)}
-                <tr>
-                  <td colSpan={7} className={`px-3 py-2 text-xs font-bold ${dark ? "bg-orange-900/40 text-orange-300" : "bg-orange-500 text-white"}`}>
-                    ANALISIS
-                  </td>
-                </tr>
-                {(["insight","problem","action_plan"] as const).map(key => (
-                  <tr key={key} className={`border-b ${dark ? "border-white/5" : "border-slate-50"}`}>
-                    <td className={`px-3 py-2 text-xs font-bold uppercase ${tx}`}>{key.replace("_"," ")}</td>
-                    <td colSpan={6} className="px-2 py-1">
-                      <input
-                        type="text"
-                        value={(data[activeWeek]?.[key] as string) ?? ""}
-                        onChange={e => setField(activeWeek, key, e.target.value)}
-                        className={`w-full px-3 py-1.5 rounded-lg border text-xs outline-none ${inp}`}
-                        placeholder={`Tulis ${key.replace("_"," ")} untuk ${WEEK_LABELS[activeWeek]}...`}
-                      />
-                    </td>
-                  </tr>
+              {/* KPI cards 3x2 */}
+              <div className="grid grid-cols-3 gap-4">
+                {[
+                  { label:"Total Spend",   value:`Rp ${fmt(r.total_spend)}`,   sub:`Meta Rp${fmt(r.total_meta_spend)} + Google Rp${fmt(r.total_google_spend)}`, icon:DollarSign,   color:"text-blue-400" },
+                  { label:"Total Leads",   value:fmt(r.total_leads),            sub:`Meta ${r.total_meta_leads} + Google ${r.total_google_leads}`,                icon:Users,        color:"text-violet-400" },
+                  { label:"CPL",           value:`Rp ${fmt(r.cpl)}`,           sub:"Cost per Lead",                                                              icon:TrendingUp,   color:"text-cyan-400" },
+                  { label:"Warms",         value:fmt(r.total_warms),            sub:"Leads hangat",                                                               icon:Users,        color:"text-amber-400" },
+                  { label:"Hot Leads",     value:fmt(r.total_hot_leads),        sub:`Hot rate ${r.hot_rate}%`,                                                    icon:Flame,        color:"text-orange-400" },
+                  { label:"Closing",       value:fmt(r.total_closing),          sub:`Closing rate ${r.closing_rate}%`,                                            icon:CheckCircle,  color:"text-emerald-400" },
+                ].map((kpi) => (
+                  <div key={kpi.label} className={`rounded-xl border p-4 ${card}`}>
+                    <div className="flex items-center gap-2 mb-2">
+                      <kpi.icon size={16} className={kpi.color} />
+                      <span className={`text-xs font-medium ${mt}`}>{kpi.label}</span>
+                    </div>
+                    <p className={`text-xl font-bold ${tx}`}>{kpi.value}</p>
+                    <p className={`text-xs mt-1 ${mt}`}>{kpi.sub}</p>
+                  </div>
                 ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+              </div>
 
-        <button
-          onClick={() => saveWeek(activeWeek)}
-          disabled={saving}
-          className="px-8 py-3.5 bg-orange-500 hover:bg-orange-600 text-white font-bold rounded-2xl disabled:opacity-50 transition-colors"
-        >
-          {saving ? "Menyimpan..." : `Simpan ${WEEK_LABELS[activeWeek]}`}
-        </button>
-      </div>
+              {/* Progress bars */}
+              <div className={`rounded-xl border p-4 ${card}`}>
+                <p className={`text-xs font-semibold uppercase tracking-wider mb-3 ${mt}`}>Persentase KPI</p>
+                <div className="space-y-4">
+                  {[
+                    { label:"Hot Rate",     value:r.hot_rate,     target:20, color:"bg-orange-400" },
+                    { label:"Closing Rate", value:r.closing_rate, target:5,  color:"bg-emerald-400" },
+                  ].map((item) => (
+                    <div key={item.label}>
+                      <div className="flex justify-between text-xs mb-1">
+                        <span className={mt}>{item.label}</span>
+                        <span className={`font-semibold ${tx}`}>
+                          {item.value}% <span className={mt}>/ target {item.target}%</span>
+                        </span>
+                      </div>
+                      <div className={`h-2 rounded-full ${dark ? "bg-white/10" : "bg-slate-100"}`}>
+                        <div
+                          className={`h-2 rounded-full ${item.color} transition-all duration-500`}
+                          style={{ width: `${Math.min((item.value / item.target) * 100, 100)}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
