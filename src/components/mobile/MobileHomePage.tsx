@@ -67,17 +67,26 @@ const PRI_COLOR: Record<string, string> = {
   low: "bg-blue-400",
 };
 const MENU_ITEMS = [
-  { icon: CheckSquare, label: "Tasks",       color: "bg-purple-500", tab: "tasks" },
+  { icon: MessageCircle, label: "Script WA",  color: "bg-emerald-500", tab: "wa"       },
+  { icon: Calendar,      label: "Jadwal",     color: "bg-pink-500",    tab: "schedule" },
+  { icon: CheckSquare,   label: "Tasks",      color: "bg-purple-500",  tab: "tasks"    },
   { icon: BarChart2,   label: "KPI",         color: "bg-orange-500", tab: "kpi" },
   { icon: Target,      label: "Goals",       color: "bg-indigo-500", tab: "goals" },
   { icon: Award,       label: "Ranking",     color: "bg-yellow-500", tab: "leaderboard" },
-  { icon: Calendar,    label: "Jadwal",      color: "bg-pink-500",   tab: "schedule" },
   { icon: Activity,    label: "Aktivitas",   color: "bg-teal-500",   tab: "activity" },
-  { icon: FileText,    label: "Laporan",     color: "bg-blue-400",   tab: "reports" },
+  { icon: TrendingUp,  label: "Daily Report", color: "bg-indigo-600", tab: "daily-report" },
+  { icon: FileText,      label: "Laporan",      color: "bg-blue-400",   tab: "reports"       },
   { icon: Phone,       label: "Broadcast",   color: "bg-rose-500",   tab: "broadcast" },
   { icon: Gift,        label: "Promo",       color: "bg-green-400",  tab: "promo" },
   { icon: BookOpen,    label: "Panduan",     color: "bg-cyan-500",   tab: "guide" },
 ];
+
+
+const ROLE_ACCESS: Record<string, string[]> = {
+  head_manager: ["tasks","kpi","goals","leaderboard","schedule","activity","reports","broadcast","promo","guide","wa","daily-report"],
+  manager:      ["tasks","kpi","leaderboard","schedule","activity","reports","broadcast","promo","guide","wa","daily-report"],
+  staff:        ["tasks","kpi","schedule","broadcast","promo","guide","wa","daily-report"],
+};
 
 export function MobileHomePage(props: MobileHomePageProps) {
   const {
@@ -102,12 +111,17 @@ export function MobileHomePage(props: MobileHomePageProps) {
   return (
     <div className="flex-1 overflow-y-auto pb-20">
       {/* Header */}
-      <div className="bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-800 px-5 pt-12 pb-12">
-        <div className="flex items-center justify-between mb-5">
-          <button onClick={onOpenMenu} className="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center text-white hover:bg-white/25 transition-colors">
+      <div className="bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-800 px-4 pt-10 pb-6">
+        <div className="flex items-center gap-2 mb-4">
+          <button onClick={onOpenMenu} className="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center text-white hover:bg-white/25 transition-colors flex-shrink-0">
             <Menu size={18} />
           </button>
-          <div className="flex items-center gap-2">
+          <div className="flex-1 text-center mx-2">
+            <p className="text-blue-200 text-xs">{greeting} 👋</p>
+            <h1 className="text-white font-bold text-base leading-tight">{user.name}</h1>
+            <p className="text-blue-200/80 text-[10px]">{user.role} · {user.team}</p>
+          </div>
+          <div className="flex items-center gap-1.5 flex-shrink-0">
             {streak > 0 && (
               <div className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-orange-400/20 border border-orange-400/30">
                 <Flame size={13} className="text-orange-300" />
@@ -122,17 +136,37 @@ export function MobileHomePage(props: MobileHomePageProps) {
                 </span>
               )}
             </button>
-            <button onClick={onOpenMenu} className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center text-white font-bold text-sm border-2 border-white/30">
+            <button onClick={() => onNavigate("profile")} className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center text-white font-bold text-sm border-2 border-white/30">
               {user.name.charAt(0)}
             </button>
           </div>
         </div>
-        <div>
-          <p className="text-blue-200 text-sm">{greeting}, 👋</p>
-          <h1 className="text-white font-bold text-xl">{user.name}</h1>
-          <p className="text-blue-200 text-xs">{user.role} · {user.team}</p>
-        </div>
+
       </div>
+
+        <div className="bg-white/10 backdrop-blur-sm rounded-2xl px-4 py-3 mt-2">
+          <div className="flex items-center justify-around">
+            <div className="text-center">
+              <p className="text-white font-bold text-lg leading-none">{leads.length}</p>
+              <p className="text-blue-200 text-[10px] mt-0.5">Leads</p>
+            </div>
+            <div className="w-px h-7 bg-white/20" />
+            <div className="text-center">
+              <p className="text-white font-bold text-lg leading-none">{hotCount}</p>
+              <p className="text-blue-200 text-[10px] mt-0.5">Hot 🔥</p>
+            </div>
+            <div className="w-px h-7 bg-white/20" />
+            <div className="text-center">
+              <p className="text-white font-bold text-lg leading-none">{kpiDone}</p>
+              <p className="text-blue-200 text-[10px] mt-0.5">Closing</p>
+            </div>
+            <div className="w-px h-7 bg-white/20" />
+            <div className="text-center">
+              <p className="text-white font-bold text-lg leading-none">{progress}%</p>
+              <p className="text-blue-200 text-[10px] mt-0.5">Target</p>
+            </div>
+          </div>
+        </div>
 
       {/* Floating stats card */}
       <div className="px-4 -mt-7 relative z-20">
@@ -213,7 +247,7 @@ export function MobileHomePage(props: MobileHomePageProps) {
         <div className={`${card} border rounded-2xl p-4 shadow-md`}>
           <p className={`text-xs font-semibold ${mt} mb-3`}>MENU LENGKAP</p>
           <div className="grid grid-cols-5 gap-2">
-            {MENU_ITEMS.map((m) => {
+            {MENU_ITEMS.filter(m => (ROLE_ACCESS[user.role] ?? ROLE_ACCESS.staff).includes(m.tab)).map((m) => {
               const Icon = m.icon;
               return (
                 <button key={m.tab} onClick={() => onNavigate(m.tab)} className="flex flex-col items-center gap-1 group">

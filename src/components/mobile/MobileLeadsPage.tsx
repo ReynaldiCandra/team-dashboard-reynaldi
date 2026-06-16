@@ -87,7 +87,7 @@ function LeadDetailDrawer({
     await onUpdateLead?.(lead.id, { category: cat });
     setSaving(false);
     setEditCat(false);
-    showToast("✅ Kategori diperbarui");
+    showToast("Kategori berhasil diperbarui");
   }
 
   async function handleStatusChange(st: string) {
@@ -95,7 +95,7 @@ function LeadDetailDrawer({
     await onUpdateLead?.(lead.id, { status: st });
     setSaving(false);
     setEditStatus(false);
-    showToast("✅ Status diperbarui");
+    showToast("Status berhasil diperbarui");
   }
 
   async function handleSaveNotes() {
@@ -103,7 +103,7 @@ function LeadDetailDrawer({
     await onUpdateLead?.(lead.id, { notes: notesVal });
     setSaving(false);
     setEditNotes(false);
-    showToast("✅ Catatan disimpan");
+    showToast("Catatan berhasil disimpan");
   }
 
   async function handleDelete() {

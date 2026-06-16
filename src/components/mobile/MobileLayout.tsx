@@ -4,6 +4,7 @@ import { MobileAIMarketing } from "@/components/mobile/MobileAIMarketing";
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { Home, Users, MessageCircle, Calendar, User, Sparkles } from "lucide-react";
 import { MobileHomePage } from "./MobileHomePage";
+import { MobileDailyReportView } from "./MobileDailyReportView";
 import { MobileLeadsPage } from "./MobileLeadsPage";
 import { WAScriptPage } from "./WAScriptPage";
 import { SchedulePage } from "./SchedulePage";
@@ -71,7 +72,7 @@ interface MobileLayoutProps {
   chartData?: { day: string; val: number }[];
   streak?: number;
 
-  onAddLead: (data: { name: string; child_name: string; phone: string; area: string; category: "HOT" | "WARM" | "COLD" }) => Promise<void>;
+  onAddLead: (data: { name: string; child_name: string; phone: string; area: string; category: "HOT" | "WARM" | "COLD"; jenjang?: string; sekolah_asal?: string }) => Promise<void>;
   // ✅ Tambah callback update/delete lead
   onUpdateLead?: (leadId: string, updates: { category?: string; status?: string; notes?: string }) => Promise<void>;
   onDeleteLead?: (leadId: string) => Promise<void>;
@@ -82,18 +83,23 @@ interface MobileLayoutProps {
 }
 
 const NAV_TABS = [
-  { tab: "home",     Icon: Home,          label: "Home"       },
-  { tab: "leads",    Icon: Users,         label: "Leads"      },
-  { tab: "wa",       Icon: MessageCircle, label: "Script WA", center: true },
-  { tab: "schedule", Icon: Calendar,      label: "Jadwal"     },
-  { tab: "profile",  Icon: User,          label: "Profil"     },
-  { tab: "ai-marketing", Icon: Sparkles,   label: "AI"         },
+  { tab: "leads",        Icon: Users,    label: "Leads"  },
+  { tab: "home",         Icon: Home,     label: "Home",  center: true },
+  { tab: "ai-marketing", Icon: Sparkles, label: "AI"     },
+  { tab: "profile",      Icon: User,     label: "Profil" },
 ] as const;
 
 type Tab = typeof NAV_TABS[number]["tab"] | string;
 
 // ✅ Semua tab yang sudah punya halaman nyata
-const HANDLED_TABS = ["home", "leads", "wa", "schedule", "profile", "leaderboard", "reports", "kpi", "tasks", "broadcast", "promo", "guide", "ai-marketing"];
+
+const ROLE_ALLOWED: Record<string, string[]> = {
+  head_manager: ["home","leads","wa","schedule","profile","leaderboard","reports","kpi","tasks","broadcast","promo","guide","ai-marketing","daily-report","goals","activity"],
+  manager:      ["home","leads","wa","schedule","profile","leaderboard","reports","kpi","tasks","broadcast","promo","guide","ai-marketing","daily-report"],
+  staff:        ["home","leads","wa","schedule","profile","kpi","tasks","broadcast","promo","guide","ai-marketing","daily-report"],
+};
+
+const HANDLED_TABS = ["home", "leads", "wa", "schedule", "profile", "leaderboard", "reports", "kpi", "tasks", "broadcast", "promo", "guide", "ai-marketing", "daily-report"];
 
 export function MobileLayout({
   userId, userName, userRole, userTeam, staffName,
@@ -226,7 +232,7 @@ export function MobileLayout({
   );
 
   return (
-    <div className={`relative h-full w-full ${bg} overflow-hidden flex flex-col`}>
+    <div className={`relative h-[100dvh] w-full ${bg} overflow-hidden flex flex-col`}>
       <Confetti active={confetti} />
 
       {toast && (
@@ -382,6 +388,14 @@ export function MobileLayout({
             </div>
             <MobileAIMarketing dark={dark} />
           </div>
+        )}
+
+        {activeTab === "daily-report" && (
+          <MobileDailyReportView
+            dark={dark}
+            onBack={() => go("home")}
+            currentUser={{ id: userId, name: userName, role: userRole, team: userTeam }}
+          />
         )}
         {!HANDLED_TABS.includes(activeTab) && (
           <div className="flex-1 flex flex-col">
