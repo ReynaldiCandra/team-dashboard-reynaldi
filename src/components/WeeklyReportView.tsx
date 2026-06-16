@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { TrendingUp, DollarSign, Users, Flame, CheckCircle, AlertCircle, XCircle, RefreshCw, Calendar } from "lucide-react";
+import { TrendingUp, DollarSign, Users, Flame, CheckCircle, AlertCircle, XCircle, RefreshCw, Calendar, Brain, ChevronDown, ChevronUp } from "lucide-react";
 
 interface Props {
   dark?: boolean;
@@ -20,10 +20,10 @@ function fmt(n: number) { return new Intl.NumberFormat("id-ID").format(Math.roun
 function fmtDate(d: string) { return new Date(d).toLocaleDateString("id-ID", { day: "numeric", month: "short" }); }
 
 const S = {
-  green:  { icon: CheckCircle,  bg: "bg-emerald-500/15", text: "text-emerald-400", border: "border-emerald-500/30", dot: "bg-emerald-400", label: "Sesuai Target" },
-  yellow: { icon: AlertCircle,  bg: "bg-amber-500/15",   text: "text-amber-400",   border: "border-amber-500/30",   dot: "bg-amber-400",   label: "Perlu Perhatian" },
-  red:    { icon: XCircle,      bg: "bg-red-500/15",     text: "text-red-400",     border: "border-red-500/30",     dot: "bg-red-400",     label: "Di Bawah Target" },
-  gray:   { icon: AlertCircle,  bg: "bg-slate-500/15",   text: "text-slate-400",   border: "border-slate-500/30",   dot: "bg-slate-400",   label: "Belum Ada Data" },
+  green:  { icon: CheckCircle, bg: "bg-emerald-500/15", text: "text-emerald-400", border: "border-emerald-500/30", dot: "bg-emerald-400", label: "Sesuai Target" },
+  yellow: { icon: AlertCircle, bg: "bg-amber-500/15",   text: "text-amber-400",   border: "border-amber-500/30",   dot: "bg-amber-400",   label: "Perlu Perhatian" },
+  red:    { icon: XCircle,     bg: "bg-red-500/15",     text: "text-red-400",     border: "border-red-500/30",     dot: "bg-red-400",     label: "Di Bawah Target" },
+  gray:   { icon: AlertCircle, bg: "bg-slate-500/15",   text: "text-slate-400",   border: "border-slate-500/30",   dot: "bg-slate-400",   label: "Belum Ada Data" },
 };
 
 export function WeeklyReportView({ dark = false, currentUser }: Props) {
@@ -31,6 +31,9 @@ export function WeeklyReportView({ dark = false, currentUser }: Props) {
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<WeeklyReport | null>(null);
   const [toast, setToast] = useState("");
+  const [aiInsight, setAiInsight] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
+  const [showAi, setShowAi] = useState(false);
   const isHead = ["head_manager", "owner", "deputi"].includes(currentUser.role);
 
   const bg   = dark ? "bg-[#0a1020]" : "bg-gray-50";
@@ -38,13 +41,18 @@ export function WeeklyReportView({ dark = false, currentUser }: Props) {
   const tx   = dark ? "text-slate-100" : "text-slate-800";
   const mt   = dark ? "text-slate-400" : "text-slate-500";
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+    // Notification auto-check untuk manager & head
+    if (["head_manager","owner","deputi","manager"].includes(currentUser.role)) {
+      fetch("/api/notifications/check", { method: "POST" }).catch(() => {});
+    }
+  }, []);
 
   async function load() {
     setLoading(true);
     try {
-      const url = isHead ? "/api/weekly-report?limit=32" : `/api/weekly-report?limit=8`;
-      const res = await fetch(url);
+      const res = await fetch(`/api/weekly-report?limit=32`);
       const json = await res.json();
       if (json.error) throw new Error(json.error);
       const rows: WeeklyReport[] = json.data ?? [];
@@ -56,9 +64,44 @@ export function WeeklyReportView({ dark = false, currentUser }: Props) {
     } finally { setLoading(false); }
   }
 
-  // ── HEAD MANAGER VIEW: semua tim dalam satu grid ──────────────────────────
+  async function fetchAiInsight() {
+    setAiLoading(true);
+    setShowAi(true);
+    try {
+      const res = await fetch("/api/ai-insight", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ team: isHead ? undefined : currentUser.team, scope: isHead ? "all" : "team" }),
+      });
+      const json = await res.json();
+      setAiInsight(json.insight ?? json.error ?? "Tidak ada respons.");
+    } catch (e: any) {
+      setAiInsight("❌ " + e.message);
+    } finally { setAiLoading(false); }
+  }
+
+  const AiPanel = () => (
+    <div className={`rounded-xl border p-4 ${dark ? "bg-violet-950/30 border-violet-500/30" : "bg-violet-50 border-violet-200"}`}>
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <Brain size={16} className="text-violet-400" />
+          <span className={`text-sm font-semibold ${dark ? "text-violet-300" : "text-violet-700"}`}>AI Insight</span>
+        </div>
+        <button onClick={() => setShowAi(false)} className={`text-xs ${mt}`}>Tutup</button>
+      </div>
+      {aiLoading ? (
+        <div className="flex items-center gap-2 py-4">
+          <RefreshCw size={14} className="animate-spin text-violet-400" />
+          <span className={`text-sm ${mt}`}>Menganalisis data...</span>
+        </div>
+      ) : (
+        <p className={`text-sm leading-relaxed whitespace-pre-wrap ${dark ? "text-slate-300" : "text-slate-700"}`}>{aiInsight}</p>
+      )}
+    </div>
+  );
+
+  // ── HEAD MANAGER VIEW ─────────────────────────────────────────────────────
   if (isHead) {
-    // Ambil data minggu terbaru per tim
     const byTeam: Record<string, WeeklyReport> = {};
     reports.forEach(r => { if (!byTeam[r.team]) byTeam[r.team] = r; });
     const teams = Object.values(byTeam).sort((a, b) => a.team.localeCompare(b.team));
@@ -72,13 +115,18 @@ export function WeeklyReportView({ dark = false, currentUser }: Props) {
             <h1 className="text-2xl font-bold">Weekly Report — Semua Tim</h1>
             <p className={`text-sm mt-1 ${mt}`}>{currentUser.name} · Head Manager Overview</p>
           </div>
-          <button onClick={load} className={`p-2 rounded-lg border ${card} transition-colors`}>
-            <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
-          </button>
+          <div className="flex gap-2">
+            <button onClick={fetchAiInsight} disabled={aiLoading}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium transition-colors disabled:opacity-50">
+              <Brain size={15} /> AI Insight
+            </button>
+            <button onClick={load} className={`p-2 rounded-lg border ${card} transition-colors`}>
+              <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
+            </button>
+          </div>
         </div>
 
-        {/* Summary strip */}
-        <div className="flex gap-3 mb-6">
+        <div className="flex gap-3 mb-5">
           {(["green","yellow","red","gray"] as const).map(s => (
             <div key={s} className={`flex items-center gap-2 px-4 py-2 rounded-xl border ${S[s].bg} ${S[s].border}`}>
               <span className={`w-2 h-2 rounded-full ${S[s].dot}`} />
@@ -88,13 +136,14 @@ export function WeeklyReportView({ dark = false, currentUser }: Props) {
           ))}
         </div>
 
+        {showAi && <div className="mb-5"><AiPanel /></div>}
+
         {loading ? (
           <div className="flex justify-center h-40 items-center"><RefreshCw size={24} className="animate-spin text-blue-400" /></div>
         ) : (
           <div className="grid grid-cols-4 gap-4">
             {teams.map(r => {
-              const cfg = S[r.status ?? "gray"];
-              const Icon = cfg.icon;
+              const cfg = S[r.status ?? "gray"]; const Icon = cfg.icon;
               return (
                 <div key={r.team} className={`rounded-xl border p-4 ${card}`}>
                   <div className="flex items-center justify-between mb-3">
@@ -123,7 +172,7 @@ export function WeeklyReportView({ dark = false, currentUser }: Props) {
     );
   }
 
-  // ── MANAGER VIEW: tim sendiri ─────────────────────────────────────────────
+  // ── MANAGER VIEW ──────────────────────────────────────────────────────────
   const r = selected;
   const statusCfg = r ? S[r.status ?? "gray"] : S.gray;
   const StatusIcon = statusCfg.icon;
@@ -135,11 +184,21 @@ export function WeeklyReportView({ dark = false, currentUser }: Props) {
           <h1 className="text-2xl font-bold">Weekly Report</h1>
           <p className={`text-sm mt-1 ${mt}`}>Tim {currentUser.team} · {currentUser.name}</p>
         </div>
-        <button onClick={load} className={`p-2 rounded-lg border ${card} transition-colors`}>
-          <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
-        </button>
+        <div className="flex gap-2">
+          <button onClick={fetchAiInsight} disabled={aiLoading}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium transition-colors disabled:opacity-50">
+            <Brain size={15} /> AI Insight
+          </button>
+          <button onClick={load} className={`p-2 rounded-lg border ${card} transition-colors`}>
+            <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
+          </button>
+        </div>
       </div>
+
       {toast && <div className="fixed top-4 right-4 z-50 bg-slate-800 text-white px-4 py-2 rounded-lg text-sm">{toast}</div>}
+
+      {showAi && <div className="mb-5"><AiPanel /></div>}
+
       {loading ? (
         <div className="flex justify-center h-64 items-center"><RefreshCw size={24} className="animate-spin text-blue-400" /></div>
       ) : reports.length === 0 ? (
@@ -165,6 +224,7 @@ export function WeeklyReportView({ dark = false, currentUser }: Props) {
               );
             })}
           </div>
+
           {r && (
             <div className="col-span-9 space-y-5">
               <div className={`rounded-xl border p-4 flex items-start gap-3 ${statusCfg.bg} ${statusCfg.border}`}>
