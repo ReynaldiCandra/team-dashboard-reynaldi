@@ -12,7 +12,7 @@ interface Reg {
   nama_siswa: string; tempat_lahir_siswa: string; tanggal_lahir_siswa: string;
   jenis_kelamin_siswa: string; sekolah_asal: string; status_pendaftaran: string; tahun_ajaran: string;
   nama_ortu: string; tempat_lahir_ortu: string; tanggal_lahir_ortu: string;
-  jenis_kelamin_ortu: string; alamat: string; no_hp: string; email: string; catatan: string;
+  jenis_kelamin_ortu: string; alamat: string; no_hp: string; email: string; catatan: string; no_wa_manager?: string;
   created_by_name: string; team: string; created_at: string;
 }
 
@@ -24,7 +24,7 @@ const EMPTY: Omit<Reg,"id"|"reg_number"|"verify_hash"|"created_by_name"|"team"|"
   nama_siswa:"", tempat_lahir_siswa:"", tanggal_lahir_siswa:"", jenis_kelamin_siswa:"Laki-laki",
   sekolah_asal:"", status_pendaftaran:"", tahun_ajaran:"2025/2026",
   nama_ortu:"", tempat_lahir_ortu:"", tanggal_lahir_ortu:"", jenis_kelamin_ortu:"Laki-laki",
-  alamat:"", no_hp:"", email:"", catatan:"",
+  alamat:"", no_hp:"", email:"", catatan:"", no_wa_manager:"",
 };
 
 function fmtDate(d: string) {
@@ -34,125 +34,121 @@ function fmtDate(d: string) {
 async function generatePDF(reg: Reg) {
   const { jsPDF } = await import("jspdf");
   const QRCode = await import("qrcode");
-
   const doc = new jsPDF({ orientation:"portrait", unit:"mm", format:"a4" });
-  const W = 210; const margin = 20;
+  const W = 210; const margin = 18;
 
-  // Header background
-  doc.setFillColor(110, 20, 20);
-  doc.rect(0, 0, W, 38, "F");
+  try {
+    const logoRes = await fetch("/logo-alexandria.jpg");
+    const blob = await logoRes.blob();
+    const logoB64 = await new Promise<string>((res) => {
+      const reader = new FileReader();
+      reader.onload = () => res(reader.result as string);
+      reader.readAsDataURL(blob);
+    });
+    const logoSize = 22;
+    doc.addImage(logoB64, "JPEG", (W - logoSize) / 2, 8, logoSize, logoSize);
+  } catch {}
 
-  // Logo placeholder circle
-  doc.setFillColor(255,255,255);
-  doc.circle(margin + 8, 19, 8, "F");
-  doc.setTextColor(110,20,20);
-  doc.setFontSize(5);
-  doc.setFont("helvetica","bold");
-  doc.text("ALX", margin + 5.2, 20.5);
-
-  // School name
-  doc.setTextColor(255,255,255);
-  doc.setFontSize(10);
-  doc.setFont("helvetica","bold");
-  doc.text("SD-SMP-SMA ALEXANDRIA", margin + 20, 14);
-  doc.setFontSize(7.5);
-  doc.setFont("helvetica","normal");
-  doc.text("ISLAMIC BOARDING & FULLDAY SCHOOL", margin + 20, 20);
-  doc.setFontSize(6.5);
-  doc.text("Yayasan BPLI | alexandriaschool.education", margin + 20, 26);
-
-  // Document title
+  doc.setTextColor(110, 20, 20);
   doc.setFontSize(13);
-  doc.setFont("helvetica","bold");
-  doc.setTextColor(255,255,255);
-  doc.text("FORMULIR PENDAFTARAN RESMI", W/2, 34, { align:"center" });
+  doc.setFont("helvetica", "bold");
+  doc.text("YAYASAN BPLI | ALEXANDRIA ISLAMIC SCHOOL", W / 2, 36, { align: "center" });
+  doc.setFontSize(8);
+  doc.setFont("helvetica", "normal");
+  doc.setTextColor(80, 80, 80);
+  doc.text("SD - SMP - SMA | Islamic Boarding & Fullday School", W / 2, 42, { align: "center" });
+  doc.setDrawColor(110, 20, 20);
+  doc.setLineWidth(0.8);
+  doc.line(margin, 45, W - margin, 45);
+  doc.setLineWidth(0.3);
+  doc.line(margin, 46.5, W - margin, 46.5);
 
-  // Nomor registrasi box
+  doc.setFontSize(11);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(110, 20, 20);
+  doc.text("FORMULIR PENDAFTARAN RESMI", W / 2, 54, { align: "center" });
+
   doc.setFillColor(255, 248, 230);
-  doc.roundedRect(margin, 44, W - margin*2, 12, 2, 2, "F");
+  doc.roundedRect((W - 80) / 2, 58, 80, 13, 2, 2, "FD");
   doc.setDrawColor(200, 150, 50);
-  doc.roundedRect(margin, 44, W - margin*2, 12, 2, 2, "S");
-  doc.setTextColor(120, 80, 0);
   doc.setFontSize(7);
-  doc.setFont("helvetica","normal");
-  doc.text("NOMOR REGISTRASI", W/2, 49.5, { align:"center" });
+  doc.setFont("helvetica", "normal");
+  doc.setTextColor(120, 80, 0);
+  doc.text("NOMOR REGISTRASI", W / 2, 63, { align: "center" });
   doc.setFontSize(13);
-  doc.setFont("helvetica","bold");
-  doc.text(reg.reg_number, W/2, 55.5, { align:"center" });
+  doc.setFont("helvetica", "bold");
+  doc.text(reg.reg_number, W / 2, 69.5, { align: "center" });
 
-  // Generate QR Code
-  const verifyUrl = `https://team-dashboard-reynaldi.vercel.app/api/registrasi/verify?id=${reg.id}`;
-  const qrDataUrl = await QRCode.toDataURL(verifyUrl, { width: 80, margin: 1 });
-
-  // QR code
-  doc.addImage(qrDataUrl, "PNG", W - margin - 28, 43, 28, 28);
-  doc.setTextColor(100,100,100);
+  const waNum = (reg.no_wa_manager ?? "").replace(/\D/g, "").replace(/^0/, "62");
+  const waMsg = encodeURIComponent("Assalamualaikum, saya ingin menindaklanjuti pendaftaran anak saya.\nNama Siswa: " + reg.nama_siswa + "\nNo. Registrasi: " + reg.reg_number + "\nStatus: " + reg.status_pendaftaran);
+  const waUrl = waNum ? "https://wa.me/" + waNum + "?text=" + waMsg : "https://wa.me/";
+  const qrDataUrl = await QRCode.toDataURL(waUrl, { width: 72, margin: 1 });
+  doc.addImage(qrDataUrl, "PNG", W - margin - 25, 58, 25, 25);
+  doc.setTextColor(100, 100, 100);
   doc.setFontSize(5.5);
-  doc.setFont("helvetica","normal");
-  doc.text("Scan untuk verifikasi", W - margin - 14, 73, { align:"center" });
+  doc.setFont("helvetica", "normal");
+  doc.text("Hubungi Manager", W - margin - 12.5, 85, { align: "center" });
+  doc.text("via WhatsApp", W - margin - 12.5, 88.5, { align: "center" });
 
-  // Sections
-  let y = 78;
+  let y = 96;
 
   const sectionHeader = (title: string) => {
     doc.setFillColor(110, 20, 20);
-    doc.rect(margin, y, W - margin*2, 7, "F");
-    doc.setTextColor(255,255,255);
-    doc.setFontSize(8);
-    doc.setFont("helvetica","bold");
-    doc.text(title, margin + 3, y + 4.8);
-    y += 10;
+    doc.rect(margin, y, W - margin * 2, 6.5, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(7.5);
+    doc.setFont("helvetica", "bold");
+    doc.text(title, margin + 3, y + 4.5);
+    y += 9;
   };
 
   const field = (label: string, value: string) => {
-    doc.setTextColor(80,80,80);
+    doc.setTextColor(100, 100, 100);
     doc.setFontSize(7);
-    doc.setFont("helvetica","normal");
+    doc.setFont("helvetica", "normal");
     doc.text(label, margin + 3, y);
-    doc.setTextColor(20,20,20);
-    doc.setFont("helvetica","bold");
-    doc.text(value || "-", margin + 55, y);
-    doc.setDrawColor(220,220,220);
+    doc.setTextColor(20, 20, 20);
+    doc.setFont("helvetica", "bold");
+    doc.text(value || "-", margin + 58, y);
+    doc.setDrawColor(220, 220, 220);
+    doc.setLineWidth(0.2);
     doc.line(margin, y + 1.5, W - margin, y + 1.5);
     y += 7;
   };
 
   sectionHeader("DATA CALON SISWA");
   field("Nama Lengkap", reg.nama_siswa);
-  field("Tempat / Tgl Lahir", `${reg.tempat_lahir_siswa}, ${reg.tanggal_lahir_siswa}`);
+  field("Tempat / Tgl Lahir", reg.tempat_lahir_siswa + ", " + reg.tanggal_lahir_siswa);
   field("Jenis Kelamin", reg.jenis_kelamin_siswa);
   field("Sekolah Asal", reg.sekolah_asal || "-");
   field("Status Pendaftaran", reg.status_pendaftaran);
   field("Tahun Ajaran", reg.tahun_ajaran);
 
-  y += 3;
+  y += 2;
   sectionHeader("DATA ORANG TUA / WALI");
   field("Nama Lengkap", reg.nama_ortu);
-  field("Tempat / Tgl Lahir", `${reg.tempat_lahir_ortu}, ${reg.tanggal_lahir_ortu}`);
+  field("Tempat / Tgl Lahir", reg.tempat_lahir_ortu + ", " + reg.tanggal_lahir_ortu);
   field("Jenis Kelamin", reg.jenis_kelamin_ortu);
   field("Alamat", reg.alamat);
   field("No. HP / Telepon", reg.no_hp);
   field("Email", reg.email || "-");
   if (reg.catatan) field("Catatan", reg.catatan);
 
-  y += 3;
-
-  // Footer info
-  doc.setFillColor(245,245,245);
-  doc.rect(margin, y, W - margin*2, 22, "F");
-  doc.setTextColor(80,80,80);
+  y += 4;
+  doc.setDrawColor(110, 20, 20);
+  doc.setLineWidth(0.5);
+  doc.line(margin, y, W - margin, y);
+  y += 5;
+  doc.setTextColor(80, 80, 80);
   doc.setFontSize(6.5);
-  doc.setFont("helvetica","normal");
-  doc.text(`Dibuat oleh: ${reg.created_by_name} | Tim: ${reg.team}`, margin + 3, y + 6);
-  doc.text(`Tanggal: ${fmtDate(reg.created_at)}`, margin + 3, y + 12);
-  doc.setFont("helvetica","bold");
-  doc.setTextColor(110,20,20);
-  doc.text(`Kode Verifikasi: ${reg.verify_hash}`, margin + 3, y + 18);
-  doc.setFont("helvetica","normal");
-  doc.setTextColor(80,80,80);
-  doc.text(`Scan QR Code atau kunjungi: ${verifyUrl}`, W - margin - 3, y + 18, { align:"right" });
+  doc.setFont("helvetica", "normal");
+  doc.text("Dibuat oleh: " + reg.created_by_name + "  |  Tim: " + reg.team + "  |  Tanggal: " + fmtDate(reg.created_at), margin, y);
+  y += 5;
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(110, 20, 20);
+  doc.text("Kode Verifikasi: " + reg.verify_hash, margin, y);
 
-  doc.save(`Registrasi_${reg.reg_number}_${reg.nama_siswa.replace(/\s+/g,"-")}.pdf`);
+  doc.save("Registrasi_" + reg.reg_number + "_" + reg.nama_siswa.replace(/\s+/g, "-") + ".pdf");
 }
 
 export function RegistrasiView({ dark = false, currentUser }: Props) {
@@ -288,6 +284,7 @@ export function RegistrasiView({ dark = false, currentUser }: Props) {
                   <div className="col-span-2"><label className={labelCls}>Alamat Lengkap *</label><textarea className={inputCls} rows={2} value={form.alamat} onChange={e=>set("alamat",e.target.value)} placeholder="Alamat lengkap" /></div>
                   <div><label className={labelCls}>No. HP / Telepon *</label><input className={inputCls} value={form.no_hp} onChange={e=>set("no_hp",e.target.value)} placeholder="+62 812-xxxx-xxxx" /></div>
                   <div><label className={labelCls}>Email</label><input className={inputCls} value={form.email} onChange={e=>set("email",e.target.value)} placeholder="email@example.com" /></div>
+                  <div className="col-span-2"><label className={labelCls}>No. WhatsApp Manager (untuk QR)</label><input className={inputCls} value={form.no_wa_manager} onChange={e=>set("no_wa_manager",e.target.value)} placeholder="+62 812-xxxx-xxxx" /></div>
                   <div className="col-span-2"><label className={labelCls}>Catatan Tambahan</label><textarea className={inputCls} rows={2} value={form.catatan} onChange={e=>set("catatan",e.target.value)} placeholder="Catatan atau keterangan tambahan..." /></div>
                 </div>
               </div>
