@@ -37,6 +37,8 @@ import ClosingPage from '@/components/pages/ClosingPage'
 import { useLeaderboard } from '@/hooks/use-leaderboard'
 import { AISummaryModal } from '@/components/AISummaryModal'
 import { AIMarketingView } from '@/components/AIMarketingView'
+import { DailyReportView } from '@/components/DailyReportView'
+import { WeeklyReportView } from '@/components/WeeklyReportView'
 import { useTasks } from '@/hooks/use-tasks'
 import { createClient } from '@/lib/supabase/client'
 import type { Lead as DBLead, LeadCategory } from '@/hooks/use-leads'
@@ -46,7 +48,7 @@ import { usePerformance } from '@/hooks/use-performance'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 type Role = 'owner' | 'deputi' | 'head_manager' | 'manager' | 'staff'
-type View = 'dashboard' | 'leads' | 'performance' | 'team' | 'campaigns' | 'reports' | 'goals' | 'attendance' | 'commission' | 'closing' | 'settings' | 'ai-marketing'
+type View = 'dashboard' | 'leads' | 'performance' | 'team' | 'campaigns' | 'reports' | 'daily-report' | 'weekly-report' | 'goals' | 'attendance' | 'commission' | 'closing' | 'settings' | 'ai-marketing'
 
 type LeadStatus = 'baru' | 'dihubungi' | 'berminat' | 'survey' | 'meeting' | 'proposal' | 'closing' | 'gagal'
 type LeadTemp = 'hot' | 'warm' | 'cold'
@@ -115,9 +117,9 @@ type TeamName = typeof TEAMS[number] | 'All'
 const ROLE_CONFIG: Record<Role, { label:string; badge:string; nav:string[] }> = {
   owner:        { label:'Pemilik Yayasan', badge:'bg-yellow-500/20 text-yellow-300', nav:['dashboard','performance','team','campaigns','reports','goals','settings'] },
   deputi:       { label:'Deputi',          badge:'bg-purple-500/20 text-purple-300', nav:['dashboard','performance','team','campaigns','reports','goals','attendance','commission','settings'] },
-  head_manager: { label:'Head Manager',   badge:'bg-red-500/20 text-red-300',    nav:['dashboard','leads','performance','team','campaigns','reports','goals','attendance','commission','closing','settings'] },
-  manager:      { label:'Manager',         badge:'bg-orange-500/20 text-orange-400', nav:['dashboard','leads','performance','team','campaigns','goals','attendance','commission','closing'] },
-  staff:        { label:'Staff Marketing', badge:'bg-blue-500/20 text-blue-400',    nav:['dashboard','leads','attendance','commission'] },
+  head_manager: { label:'Head Manager',   badge:'bg-red-500/20 text-red-300',    nav:['dashboard','leads','performance','team','campaigns','reports','daily-report','weekly-report','goals','attendance','commission','closing','settings'] },
+  manager:      { label:'Manager',         badge:'bg-orange-500/20 text-orange-400', nav:['dashboard','leads','performance','team','campaigns','daily-report','weekly-report','goals','attendance','commission','closing'] },
+  staff:        { label:'Staff Marketing', badge:'bg-blue-500/20 text-blue-400',    nav:['dashboard','leads','daily-report','attendance','commission'] },
 }
 
 
@@ -2252,6 +2254,8 @@ const NAV: { icon:React.ComponentType<{size?:number;className?:string}>; label:s
   { icon:Users,           label:'Tim',        view:'team',        roles:['owner','deputi','head_manager','manager'] },
   { icon:Megaphone,       label:'Campaign',   view:'campaigns',   roles:['deputi','head_manager','manager'] },
   { icon:FileText,        label:'Reports',    view:'reports',     roles:['owner','deputi','head_manager'] },
+  { icon:ClipboardList,   label:'Daily Report', view:'daily-report',  roles:['head_manager','manager','staff'] },
+  { icon:FileSpreadsheet, label:'Weekly Report', view:'weekly-report', roles:['head_manager','manager'] },
   { icon:Target,          label:'OKR Goals',  view:'goals',       roles:['deputi','head_manager','manager'] },
   { icon:Calendar,        label:'Attendance', view:'attendance',  roles:['head_manager','manager','staff'] },
   { icon:CreditCard,      label:'Komisi',     view:'commission',  roles:['head_manager','manager','staff'] },
@@ -2261,7 +2265,7 @@ const NAV: { icon:React.ComponentType<{size?:number;className?:string}>; label:s
 
 const viewTitle: Record<View,string> = {
   dashboard:'Dashboard Overview', leads:'Leads Management', performance:'Input Performa',
-  team:'Manajemen Tim', campaigns:'Campaign', reports:'Reports & Analytics',
+  team:'Manajemen Tim', campaigns:'Campaign', reports:'Reports & Analytics', 'daily-report':'Daily Report', 'weekly-report':'Weekly Report',
   goals:'OKR Goals', attendance:'Attendance & Check-in', commission:'Komisi & Insentif', closing:'Closing', settings:'Pengaturan', 'ai-marketing':'AI Marketing'
 }
 
@@ -2522,6 +2526,8 @@ export default function AlexandriaDashboard() {
               {view==='team' && <TeamView dark={d} currentUser={user} isOnline={isOnline}/>}
               {view==='campaigns' && <CampaignsView dark={d}/>}
               {view==='reports' && <ReportsView dark={d}/>}
+              {view==='daily-report' && <DailyReportView dark={d} currentUser={user}/>}
+              {view==='weekly-report' && <WeeklyReportView dark={d} currentUser={user}/>}
               {view==='goals' && <GoalsView dark={d}/>}
               {view==='attendance' && <AttendanceView dark={d} currentUser={user}/>}
               {view==='commission' && <CommissionView dark={d} currentUser={user}/>}
