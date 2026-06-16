@@ -12,6 +12,7 @@ export interface DailyReport {
   hot_leads: number;
   closing: number;
   notes: string;
+  rencana_besok?: string;
   created_at: string;
 }
 

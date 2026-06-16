@@ -22,9 +22,9 @@ export async function GET(req: NextRequest) {
     if (!profile) return NextResponse.json({ error: "No profile" }, { status: 403 });
 
     const { searchParams } = new URL(req.url);
-    const from  = searchParams.get("from");
-    const to    = searchParams.get("to");
-    const team  = searchParams.get("team");
+    const from = searchParams.get("from");
+    const to   = searchParams.get("to");
+    const team = searchParams.get("team");
 
     let query = supabase.from("daily_reports").select("*").order("report_date", { ascending: false });
 
@@ -60,7 +60,8 @@ export async function POST(req: NextRequest) {
       meta_ads_spend = 0, google_ads_spend = 0,
       meta_ads_leads = 0, google_ads_leads = 0,
       warms = 0, hot_leads = 0, closing = 0,
-      notes = ""
+      notes = "",
+      rencana_besok = "",
     } = body;
 
     if (!report_date) return NextResponse.json({ error: "report_date required" }, { status: 400 });
@@ -72,7 +73,8 @@ export async function POST(req: NextRequest) {
       team: reportTeam, report_date,
       meta_ads_spend, google_ads_spend,
       meta_ads_leads, google_ads_leads,
-      warms, hot_leads, closing, notes,
+      warms, hot_leads, closing,
+      notes, rencana_besok,
       submitted_by: user.id,
       updated_at: new Date().toISOString(),
     };
