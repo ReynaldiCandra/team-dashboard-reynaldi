@@ -39,6 +39,7 @@ import { AISummaryModal } from '@/components/AISummaryModal'
 import { AIMarketingView } from '@/components/AIMarketingView'
 import { DailyReportView } from '@/components/DailyReportView'
 import { WeeklyReportView } from '@/components/WeeklyReportView'
+import { MonthlyReportView } from '@/components/MonthlyReportView'
 import { useTasks } from '@/hooks/use-tasks'
 import { createClient } from '@/lib/supabase/client'
 import type { Lead as DBLead, LeadCategory } from '@/hooks/use-leads'
@@ -48,7 +49,7 @@ import { usePerformance } from '@/hooks/use-performance'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 type Role = 'owner' | 'deputi' | 'head_manager' | 'manager' | 'staff'
-type View = 'dashboard' | 'leads' | 'performance' | 'team' | 'campaigns' | 'reports' | 'daily-report' | 'weekly-report' | 'goals' | 'attendance' | 'commission' | 'closing' | 'settings' | 'ai-marketing'
+type View = 'dashboard' | 'leads' | 'performance' | 'team' | 'campaigns' | 'reports' | 'daily-report' | 'weekly-report' | 'monthly-report' | 'goals' | 'attendance' | 'commission' | 'closing' | 'settings' | 'ai-marketing'
 
 type LeadStatus = 'baru' | 'dihubungi' | 'berminat' | 'survey' | 'meeting' | 'proposal' | 'closing' | 'gagal'
 type LeadTemp = 'hot' | 'warm' | 'cold'
@@ -2256,6 +2257,7 @@ const NAV: { icon:React.ComponentType<{size?:number;className?:string}>; label:s
   { icon:FileText,        label:'Reports',    view:'reports',     roles:['owner','deputi','head_manager'] },
   { icon:ClipboardList,   label:'Daily Report', view:'daily-report',  roles:['head_manager','manager','staff'] },
   { icon:FileSpreadsheet, label:'Weekly Report', view:'weekly-report', roles:['head_manager','manager'] },
+  { icon:FileSpreadsheet, label:'Monthly Report', view:'monthly-report', roles:['head_manager','manager'] },
   { icon:Target,          label:'OKR Goals',  view:'goals',       roles:['deputi','head_manager','manager'] },
   { icon:Calendar,        label:'Attendance', view:'attendance',  roles:['head_manager','manager','staff'] },
   { icon:CreditCard,      label:'Komisi',     view:'commission',  roles:['head_manager','manager','staff'] },
@@ -2265,7 +2267,7 @@ const NAV: { icon:React.ComponentType<{size?:number;className?:string}>; label:s
 
 const viewTitle: Record<View,string> = {
   dashboard:'Dashboard Overview', leads:'Leads Management', performance:'Input Performa',
-  team:'Manajemen Tim', campaigns:'Campaign', reports:'Reports & Analytics', 'daily-report':'Daily Report', 'weekly-report':'Weekly Report',
+  team:'Manajemen Tim', campaigns:'Campaign', reports:'Reports & Analytics', 'daily-report':'Daily Report', 'weekly-report':'Weekly Report', 'monthly-report':'Monthly Report',
   goals:'OKR Goals', attendance:'Attendance & Check-in', commission:'Komisi & Insentif', closing:'Closing', settings:'Pengaturan', 'ai-marketing':'AI Marketing'
 }
 
@@ -2528,6 +2530,7 @@ export default function AlexandriaDashboard() {
               {view==='reports' && <ReportsView dark={d}/>}
               {view==='daily-report' && <DailyReportView dark={d} currentUser={user}/>}
               {view==='weekly-report' && <WeeklyReportView dark={d} currentUser={user}/>}
+              {view==='monthly-report' && <MonthlyReportView dark={d} currentUser={user}/>}
               {view==='goals' && <GoalsView dark={d}/>}
               {view==='attendance' && <AttendanceView dark={d} currentUser={user}/>}
               {view==='commission' && <CommissionView dark={d} currentUser={user}/>}
