@@ -56,7 +56,7 @@ const CLOSING_FIELDS = [
 
 function currentMonth() { return new Date().toISOString().slice(0, 7); }
 function calcMonthly(data: Record<WeekKey, any>, key: string): number {
-  return ([1,2,3,4] as WeekKey[]).reduce((s, w) => s + (Number(data[w]?.[key]) || 0), 0);
+  return ([1,2,3,4] as WeekKey[]).reduce<number>((s, w) => s + (Number(data[w]?.[key]) || 0), 0);
 }
 
 export function WeeklyReportView({ dark = false, currentUser }: Props) {
