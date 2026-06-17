@@ -42,3 +42,24 @@ export async function POST(req: NextRequest) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ data });
 }
+
+export async function DELETE(req: Request) {
+  const supabase = await makeClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
+
+  const url = new URL(req.url);
+  const id = url.searchParams.get("id");
+  if (!id) return Response.json({ error: "ID required" }, { status: 400 });
+
+  const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
+  const role = profile?.role ?? "";
+  const isHead = ["head_manager","owner","deputi"].includes(role);
+
+  let query = supabase.from("registrations").delete().eq("id", id);
+  if (!isHead) query = query.eq("created_by", user.id);
+
+  const { error } = await query;
+  if (error) return Response.json({ error: error.message }, { status: 500 });
+  return Response.json({ success: true });
+}

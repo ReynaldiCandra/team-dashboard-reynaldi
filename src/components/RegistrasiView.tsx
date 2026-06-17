@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { Plus, Download, Search, CheckCircle, XCircle, Eye, RefreshCw, FileText } from "lucide-react";
+import { Plus, Download, Search, CheckCircle, XCircle, Eye, RefreshCw, FileText, Trash2 } from "lucide-react";
 
 interface Props {
   dark?: boolean;
@@ -160,6 +160,20 @@ export function RegistrasiView({ dark = false, currentUser }: Props) {
   const [toast, setToast] = useState("");
   const [search, setSearch] = useState("");
   const [preview, setPreview] = useState<Reg|null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<Reg|null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  async function handleDelete(reg: Reg) {
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/registrasi?id=${reg.id}`, { method: 'DELETE' });
+      if (res.ok) {
+        setList(prev => prev.filter(r => r.id !== reg.id));
+        setConfirmDelete(null);
+      } else { alert('Gagal menghapus data.'); }
+    } catch { alert('Gagal menghapus data.'); }
+    setDeleting(false);
+  }
 
   const bg   = dark ? "bg-[#0a1020]" : "bg-gray-50";
   const card = dark ? "bg-[#111d35] border-[#1e2d4a]" : "bg-white border-slate-200";
@@ -349,6 +363,9 @@ export function RegistrasiView({ dark = false, currentUser }: Props) {
                         <button onClick={() => generatePDF(r)} className={`p-1.5 rounded-lg ${dark?"hover:bg-white/10":"hover:bg-slate-100"} text-blue-400 transition-colors`} title="Download PDF">
                           <Download size={14} />
                         </button>
+                        <button onClick={() => setConfirmDelete(r)} className={`p-1.5 rounded-lg ${dark?"hover:bg-red-500/20":"hover:bg-red-50"} text-red-400 transition-colors`} title="Hapus">
+                          <Trash2 size={14} />
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -360,7 +377,34 @@ export function RegistrasiView({ dark = false, currentUser }: Props) {
       </div>
 
       {/* Preview Modal */}
-      {preview && (
+      {confirmDelete && (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      <div className={`rounded-2xl shadow-2xl p-6 w-80 ${dark?"bg-[#111d35] border border-[#1e2d4a]":"bg-white border border-slate-200"}`}>
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-10 h-10 rounded-full bg-red-500/20 flex items-center justify-center">
+            <Trash2 size={18} className="text-red-400" />
+          </div>
+          <div>
+            <p className={`font-semibold ${dark?"text-white":"text-slate-800"}`}>Hapus Registrasi</p>
+            <p className={`text-xs ${dark?"text-slate-400":"text-slate-500"}`}>{confirmDelete.reg_number}</p>
+          </div>
+        </div>
+        <p className={`text-sm mb-5 ${dark?"text-slate-300":"text-slate-600"}`}>
+          Yakin ingin menghapus data <strong>{confirmDelete.nama_siswa}</strong>? Tindakan ini tidak bisa dibatalkan.
+        </p>
+        <div className="flex gap-2">
+          <button onClick={() => setConfirmDelete(null)} className={`flex-1 py-2 rounded-lg text-sm font-medium ${dark?"bg-white/10 text-slate-300 hover:bg-white/20":"bg-slate-100 text-slate-700 hover:bg-slate-200"} transition-colors`}>
+            Batal
+          </button>
+          <button onClick={() => handleDelete(confirmDelete)} disabled={deleting} className="flex-1 py-2 rounded-lg text-sm font-medium bg-red-500 hover:bg-red-600 text-white transition-colors disabled:opacity-60">
+            {deleting ? "Menghapus..." : "Hapus"}
+          </button>
+        </div>
+      </div>
+    </div>
+  )}
+
+  {preview && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
           <div className={`rounded-2xl border w-full max-w-lg ${card}`}>
             <div className="flex items-center justify-between px-6 py-4 border-b" style={{borderColor: dark?"#1e2d4a":"#e2e8f0"}}>
