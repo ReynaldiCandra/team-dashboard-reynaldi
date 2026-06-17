@@ -38,7 +38,7 @@ async function generatePDF(reg: Reg) {
   const W = 210; const margin = 18;
 
   try {
-    const logoRes = await fetch("/logo-alexandria.jpg");
+    const logoRes = await fetch(window.location.origin + "/logo-alexandria.jpg");
     const blob = await logoRes.blob();
     const logoB64 = await new Promise<string>((res) => {
       const reader = new FileReader();
