@@ -1,290 +1,190 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useDailyReport, DailyReport } from "@/hooks/useDailyReport";
-import { DollarSign, Users, Flame, TrendingUp, RefreshCw, ChevronDown } from "lucide-react";
+import { Plus, X, TrendingUp, Users, Flame, CheckCircle, RefreshCw, ChevronDown } from "lucide-react";
 
-interface Props {
-  dark?: boolean;
-  currentUser: { id: string; name: string; role: string; team: string };
-}
+interface Props { dark: boolean; currentUser: { role: string; team: string; full_name?: string; name?: string; }; }
 
-const TEAMS = ["Tim A","Tim B","Tim C","Tim D","Tim E","Tim F","Tim G","Tim H"];
+const fmt = (n: number) => "Rp " + n.toLocaleString("id-ID");
+const fmtDate = (s: string) => new Date(s).toLocaleDateString("id-ID", { weekday:"long", day:"numeric", month:"long", year:"numeric" });
+const today = () => new Date().toISOString().split("T")[0];
+const EMPTY = { report_date: today(), team: "", meta_ads_spend: 0, google_ads_spend: 0, meta_ads_leads: 0, google_ads_leads: 0, warms: 0, hot_leads: 0, closing: 0, notes: "", rencana_besok: "" };
 
-function fmt(n: number) { return new Intl.NumberFormat("id-ID").format(n); }
-function today() { return new Date().toISOString().slice(0, 10); }
-function fmtDate(d: string) {
-  return new Date(d).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" });
-}
-
-export function DailyReportView({ dark = false, currentUser }: Props) {
+export function DailyReportView({ dark, currentUser }: Props) {
   const { reports, loading, fetch, submit } = useDailyReport();
-  const [form, setForm] = useState({
-    report_date: today(),
-    team: currentUser.role === "head_manager" ? TEAMS[0] : currentUser.team,
-    meta_ads_spend: "", google_ads_spend: "",
-    meta_ads_leads: "", google_ads_leads: "",
-    warms: "", hot_leads: "", closing: "",
-    notes: "", rencana_besok: "",
-  });
+  const role = currentUser.role;
+  const team = currentUser.team;
+  const userName = currentUser.full_name || currentUser.name || "";
+  const isHead = ["head_manager","owner","deputi"].includes(role);
+  const [showModal, setShowModal] = useState(false);
+  const [form, setForm] = useState({ ...EMPTY, team: team });
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState("");
-  const [filterTeam, setFilterTeam] = useState(
-    currentUser.role === "head_manager" ? "" : currentUser.team
-  );
+  const [filterTeam, setFilterTeam] = useState(isHead ? "" : team);
+  const [expanded, setExpanded] = useState<string | null>(null);
 
-  const bg   = dark ? "bg-[#0a1020]"   : "bg-gray-50";
-  const card = dark ? "bg-[#111d35] border-[#1e2d4a]" : "bg-white border-slate-100";
-  const tx   = dark ? "text-slate-100" : "text-slate-800";
-  const mt   = dark ? "text-slate-400" : "text-slate-500";
-  const inp  = dark ? "bg-[#1a2a45] border-[#1e2d4a] text-white placeholder-slate-500"
-                    : "bg-slate-50 border-slate-200 text-slate-800 placeholder-slate-400";
+  const bg = dark ? "bg-[#0a1020]" : "bg-gray-50";
+  const card = dark ? "bg-[#111d35] border-[#1e2d4a]" : "bg-white border-slate-200";
+  const txt = dark ? "text-white" : "text-slate-800";
+  const sub = dark ? "text-slate-400" : "text-slate-500";
+  const inp = dark ? "bg-[#0d1829] border-[#1e2d4a] text-white placeholder:text-slate-600 focus:border-blue-500" : "bg-white border-slate-200 text-slate-800 focus:border-blue-500";
+  const teams = ["Tim A","Tim B","Tim C","Tim D","Tim E","Tim F","Tim G","Tim H"];
 
-  function showToast(msg: string) { setToast(msg); setTimeout(() => setToast(""), 3000); }
+  useEffect(() => { fetch({ team: filterTeam || undefined }); }, [filterTeam]);
 
-  useEffect(() => { load(); }, [filterTeam]);
+  const set = (k: string, v: unknown) => setForm(p => ({ ...p, [k]: v }));
+  const num = (k: string, v: string) => set(k, parseInt(v) || 0);
 
-  function load() {
-    fetch({ team: filterTeam || undefined });
-  }
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!form.report_date) return showToast("Pilih tanggal laporan");
+  async function handleSubmit() {
     setSaving(true);
-    try {
-      await submit({
-        team: form.team,
-        report_date: form.report_date,
-        meta_ads_spend:   parseFloat(form.meta_ads_spend  || "0"),
-        google_ads_spend: parseFloat(form.google_ads_spend || "0"),
-        meta_ads_leads:   parseInt(form.meta_ads_leads  || "0"),
-        google_ads_leads: parseInt(form.google_ads_leads || "0"),
-        warms:      parseInt(form.warms     || "0"),
-        hot_leads:  parseInt(form.hot_leads || "0"),
-        closing:    parseInt(form.closing   || "0"),
-        notes: form.notes,
-        rencana_besok: form.rencana_besok,
-      });
-      showToast("✅ Daily report tersimpan!");
-      setForm(f => ({ ...f, meta_ads_spend:"", google_ads_spend:"", meta_ads_leads:"", google_ads_leads:"", warms:"", hot_leads:"", closing:"", notes:"", rencana_besok:"" }));
-      load();
-    } catch (e: any) {
-      showToast("❌ " + e.message);
-    } finally { setSaving(false); }
+    const ok = await submit(form);
+    setSaving(false);
+    if (ok) {
+      setToast("Laporan berhasil disimpan!");
+      setShowModal(false);
+      setForm({ ...EMPTY, team: team });
+      fetch({ team: filterTeam || undefined });
+      setTimeout(() => setToast(""), 3000);
+    } else setToast("Gagal menyimpan laporan.");
   }
 
-  function set(k: string, v: string) { setForm(p => ({ ...p, [k]: v })); }
-
-  const numInp = (label: string, key: string, prefix?: string, color?: string) => (
-    <div>
-      <label className={`text-xs font-semibold block mb-1 ${color ?? mt}`}>{label}</label>
-      <div className={`flex items-center border rounded-xl overflow-hidden ${dark ? "border-[#1e2d4a]" : "border-slate-200"}`}>
-        {prefix && <span className={`px-2 py-2 text-xs ${dark ? "bg-white/5 text-slate-400" : "bg-slate-100 text-slate-500"}`}>{prefix}</span>}
-        <input type="number" min="0" value={(form as any)[key]} onChange={e => set(key, e.target.value)}
-          className={`flex-1 px-3 py-2.5 text-sm outline-none ${inp}`} placeholder="0" />
-      </div>
-    </div>
-  );
+  const totalSpend = (r: DailyReport) => (r.meta_ads_spend || 0) + (r.google_ads_spend || 0);
+  const totalLeads = (r: DailyReport) => (r.meta_ads_leads || 0) + (r.google_ads_leads || 0);
 
   return (
-    <div className={`min-h-screen ${bg}`}>
-      {toast && (
-        <div className="fixed top-5 right-5 z-50 bg-slate-800 text-white xt-sm px-4 py-2.5 rounded-xl shadow-lg">{toast}</div>
+    <div className={`min-h-screen ${bg} p-4 md:p-6`}>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className={`text-2xl font-bold ${txt}`}>Daily Report</h1>
+          <p className={`text-sm ${sub} mt-0.5`}>{isHead ? "Semua Tim" : team} · {userName}</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button onClick={() => fetch({ team: filterTeam || undefined })} className={`p-2 rounded-lg border ${card} ${sub} hover:text-blue-400 transition-colors`}><RefreshCw size={16} /></button>
+          <button onClick={() => { setShowModal(true); setForm({ ...EMPTY, team: team }); }} className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold text-sm shadow-lg shadow-blue-500/20 transition-all">
+            <Plus size={16} /> Input Hari Ini
+          </button>
+        </div>
+      </div>
+
+      {isHead && (
+        <div className="flex gap-2 flex-wrap mb-5">
+          <button onClick={() => setFilterTeam("")} className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${filterTeam === "" ? "bg-blue-600 border-blue-600 text-white" : `${card} ${sub} border`}`}>Semua</button>
+          {teams.map(t => <button key={t} onClick={() => setFilterTeam(t)} className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${filterTeam === t ? "bg-blue-600 border-blue-600 text-white" : `${card} ${sub} border`}`}>{t}</button>)}
+        </div>
       )}
 
-      <div className="max-w-5xl mx-auto p-6 space-y-6">
-        {/* Header */}
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <h1 className={`text-2xl font-bold ${tx}`}>Daily Report</h1>
-            <p className={`text-sm ${mt}`}>Tim {currentUser.team} · {currentUser.name}</p>
-          </div>
-          <div className="flex gap-2 items-center">
-            {currentUser.role === "head_manager" && (
-              <select value={filterTeam} onChange={e => setFilterTeam(e.target.value)}
-                className={`px-3 py-2 rounded-xl border text-sm outline-none ${inp}`}>
-                <option value="">Semua Tim</option>
-                {TEAMS.map(t => <option key={t} value={t}>{t}</option>)}
-              </select>
-            )}
-            <button onClick={load} className={`p-2 rounded-xl border ${dark ? "border-[#1e2d4a]" : "border-slate-200"}`}>
-              <RefreshCw size={16} className={loading ? `animate-spin text-indigo-500` : mt} />
-            </button>
-          </div>
+      {loading ? (
+        <div className="flex items-center justify-center h-40"><div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" /></div>
+      ) : reports.length === 0 ? (
+        <div className={`rounded-2xl border ${card} p-12 text-center`}>
+          <div className="text-4xl mb-3">📋</div>
+          <p className={`font-semibold ${txt}`}>Belum ada laporan</p>
+          <p className={`text-sm ${sub} mt-1`}>Klik "Input Hari Ini" untuk mulai</p>
         </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className={`${card} border rounded-2xl p-5`}>
-              <h2 className={`font-bold ${tx} mb-4`}>Input Laporan Harian</h2>
-
-              <div className="grid grid-cols-2 gap-3 mb-4">
-                <div>
-                  <label className={`text-xs font-semibold ${mt} block mb-1`}>TANGGAL</label>
-                  <input type="date" value={form.report_date} max={today()}
-                    onChange={e => set("report_date", e.target.value)}
-                    className={`w-full px-3 py-2.5 rounded-xl border text-sm outline-none ${inp}`} />
-                </div>
-                {currentUser.role === "head_manager" ? (
-                  <div>
-                    <label className={`text-xs font-semibold ${mt} block mb-1`}>TIM</label>
-                    <select value={form.team} onChange={e => set("team", e.target.value)}
-                      className={`w-full px-3 py-2.5 rounded-xl border text-sm outline-none ${inp}`}>
-                      {TEAMS.map(t => <option key={t} value={t}>{t}</option>)}
-                    </select>
+      ) : (
+        <div className="grid gap-3">
+          {reports.map((r) => {
+            const isOpen = expanded === r.id;
+            const spend = totalSpend(r);
+            const leads = totalLeads(r);
+            const cpl = leads > 0 ? Math.round(spend / leads) : 0;
+            return (
+              <div key={r.id} className={`rounded-2xl border ${card} overflow-hidden`}>
+                <button onClick={() => setExpanded(isOpen ? null : r.id)} className="w-full text-left p-4 md:p-5">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap mb-2">
+                        <span className={`text-xs font-bold px-2.5 py-1 rounded-lg ${dark ? "bg-blue-500/20 text-blue-400" : "bg-blue-50 text-blue-600"}`}>{r.team || team}</span>
+                        <span className={`text-xs ${sub}`}>{fmtDate(r.report_date)}</span>
+                      </div>
+                      <div className="flex items-center gap-4 flex-wrap">
+                        <div className="flex items-center gap-1.5"><TrendingUp size={14} className="text-blue-400" /><span className={`text-sm font-bold ${txt}`}>{fmt(spend)}</span><span className={`text-xs ${sub}`}>spend</span></div>
+                        <div className="flex items-center gap-1.5"><Users size={14} className="text-green-400" /><span className={`text-sm font-bold ${txt}`}>{leads}</span><span className={`text-xs ${sub}`}>leads</span></div>
+                        <div className="flex items-center gap-1.5"><Flame size={14} className="text-orange-400" /><span className={`text-sm font-bold ${txt}`}>{r.hot_leads || 0}</span><span className={`text-xs ${sub}`}>hot</span></div>
+                        <div className="flex items-center gap-1.5"><CheckCircle size={14} className="text-emerald-400" /><span className="text-sm font-bold text-emerald-400">{r.closing || 0}</span><span className={`text-xs ${sub}`}>closing</span></div>
+                      </div>
+                    </div>
+                    <ChevronDown size={16} className={(sub + " mt-1 transition-transform shrink-0" + (isOpen ? " rotate-180" : ""))} />
                   </div>
-                ) : (
-                  <div>
-                    <label className={`text-xs font-semibold ${mt} block mb-1`}>TIM</label>
-                    <div className={`px-3 py-2.5 rounded-xl border text-sm opacity-60 ${inp}`}>{form.team}</div>
+                </button>
+                {isOpen && (
+                  <div className={`px-4 md:px-5 pb-5 border-t ${dark ? "border-[#1e2d4a]" : "border-slate-100"}`}>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
+                      {[
+                        { label:"Meta Ads Spend", val: fmt(r.meta_ads_spend||0), color:"text-blue-400" },
+                        { label:"Google Ads Spend", val: fmt(r.google_ads_spend||0), color:"text-yellow-400" },
+                        { label:"Leads Meta", val: String(r.meta_ads_leads||0), color:"text-blue-300" },
+                        { label:"Leads Google", val: String(r.google_ads_leads||0), color:"text-yellow-300" },
+                        { label:"Warms 🟡", val: String(r.warms||0), color:"text-orange-300" },
+                        { label:"Hot Leads 🔥", val: String(r.hot_leads||0), color:"text-orange-400" },
+                        { label:"Closing ✅", val: String(r.closing||0), color:"text-emerald-400" },
+                        { label:"CPL", val: cpl > 0 ? fmt(cpl) : "-", color:"text-purple-400" },
+                      ].map(item => (
+                        <div key={item.label} className={`rounded-xl p-3 ${dark ? "bg-[#0d1829]" : "bg-slate-50"}}`}>
+                          <p className={`text-xs ${sub} mb-1`}>{item.label}</p>
+                          <p className={`font-bold text-sm ${item.color}`}>{item.val}</p>
+                        </div>
+                      ))}
+                    </div>
+                    {r.notes && <div className={`mt-3 rounded-xl p-3 ${dark ? "bg-[#0d1829]" : "bg-slate-50"}`}><p className={`text-xs font-semibold ${sub} mb-1`}>CATATAN</p><p className={`text-sm ${txt}`}>{r.notes}</p></div>}
+                    {r.rencana_besok && <div className={`mt-2 rounded-xl p-3 ${dark ? "bg-[#0d1829]" : "bg-slate-50"}`}><p className={`text-xs font-semibold ${sub} mb-1`}>RENCANA BESOK</p><p className={`text-sm ${txt}`}>{r.rencana_besok}</p></div>}
                   </div>
                 )}
               </div>
+            );
+          })}
+        </div>
+      )}
 
-              <div className={`rounded-xl border p-3 mb-3 space-y-3 ${dark ? "border-[#1e2d4a]" : "border-slate-100"}`}>
-                <p className={`text-[11px] font-bold ${mt} flex items-center gap-1`}><DollarSign size={11}/>SPEND BUDGET</p>
+      {toast && <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 px-5 py-3 rounded-xl text-sm font-semibold shadow-xl z-50 ${toast.includes("berhasil") ? "bg-emerald-500" : "bg-red-500"} text-white`}>{toast}</div>}
+
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/60 backdrop-blur-sm p-0 md:p-4">
+          <div className={`rounded-t-3xl md:rounded-2xl shadow-2xl w-full md:max-w-lg max-h-[90vh] overflow-y-auto ${dark ? "bg-[#111d35]" : "bg-white"}`}>
+            <div className={`sticky top-0 flex items-center justify-between px-5 pt-5 pb-4 border-b ${dark ? "border-[#1e2d4a] bg-[#111d35]" : "border-slate-100 bg-white"} z-10`}>
+              <h2 className={`text-lg font-bold ${txt}`}>Input Laporan Harian</h2>
+              <button onClick={() => setShowModal(false)} className={`p-2 rounded-lg ${dark ? "hover:bg-white/10" : "hover:bg-slate-100"} ${sub}`}><X size={18} /></button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className={`block text-xs font-semibold ${sub} mb-1.5 uppercase tracking-wider`}>Tanggal</label><input type="date" value={form.report_date} onChange={e => set("report_date", e.target.value)} className={`w-full border rounded-xl px-3 py-2.5 text-sm outline-none transition-colors ${inp}`} /></div>
+                <div><label className={`block text-xs font-semibold ${sub} mb-1.5 uppercase tracking-wider`}>Tim</label>
+                  {isHead ? <select value={form.team} onChange={e => set("team", e.target.value)} className={`w-full border rounded-xl px-3 py-2.5 text-sm outline-none ${inp}`}><option value="">Pilih Tim</option>{teams.map(t => <option key={t}>{t}</option>)}</select>
+                  : <input value={team} readOnly className={`w-full border rounded-xl px-3 py-2.5 text-sm ${inp} opacity-60`} />}
+                </div>
+              </div>
+              <div><p className={`text-xs font-bold ${sub} mb-2 uppercase tracking-wider`}>💰 Spend Budget</p>
                 <div className="grid grid-cols-2 gap-3">
-                  {numInp("Meta Ads", "meta_ads_spend", "Rp")}
-                  {numInp("Google Ads", "google_ads_spend", "Rp")}
-                </div>
-              </div>
-
-              <div className={`rounded-xl border p-3 mb-3 space-y-3 ${dark ? "border-[#1e2d4a]" : "border-slate-100"}`}>
-                <p className={`text-[11px] font-bold ${mt} flex items-center gap-1`}><Users size={11}/>TOTAL LEADS MASUK</p>
-                <div className="grid grid-cols-2 gap-3">
-                  {numInp("Meta Ads", "meta_ads_leads")}
-                  {numInp("Google Ads", "google_ads_leads")}
-                </div>
-              </div>
-
-              <div className={`rounded-xl border p-3 mb-3 space-y-3 ${dark ? "border-[#1e2d4a]" : "border-slate-100"}`}>
-                <p className={`text-[11px] font-bold ${mt} flex items-center gap-1`}><Flame size={11}/>KUALITAS LEADS</p>
-                <div className="grid grid-cols-3 gap-2">
-                  {numInp("Warms", "warms", undefined, "text-orange-500")}
-                  {numInp("Hot Leads 🔥", "hot_leads", undefined, "text-red-500")}
-                {numInp("Closing ✅", "closing", undefined, "text-green-600")}
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <div>
-                  <label className={`text-xs font-semibold ${mt} block mb-1`}>CATATAN / KENDALA</label>
-                  <textarea rows={2} value={form.notes} onChange={e => set("notes", e.target.value)}
-                    placeholder="Kendala atau insight hari ini..."
-                    className={`w-full px-3 py-2 rounded-xl border text-sm outline-none resize-none ${inp}`} />
-                </div>
-                <div>
-                  <label className={`text-xs font-semibold ${mt} block mb-1`}>RENCANA BESOK</label>
-                  <textarea rows={2} value={form.rencana_besok} onChange={e => set("rencana_besok", e.target.value)}
-                    placeholder="Rencana aktivitas besok..."
-                    className={`w-full px-3 py-2 roued-xl border text-sm outline-none resize-none ${inp}`} />
-                </div>
-              </div>
-
-              {/* Summary */}
-              <div className={`rounded-xl p-3 mt-4 ${dark ? "bg-indigo-900/20 border border-indigo-500/20" : "bg-indigo-50"}`}>
-                <p className={`text-[10px] font-bold mb-2 ${dark ? "text-indigo-300" : "text-indigo-600"}`}>RINGKASAN</p>
-                <div className="grid grid-cols-3 gap-2 text-center">
-                  {[
-                    { label: "Total Leads", val: (parseInt(form.meta_ads_leads||"0") + parseInt(form.google_ads_leads||"0")) || 0 },
-                    { label: "Total Spend", val: `Rp ${fmt((parseFloat(form.meta_ads_spend||"0") + parseFloat(form.google_ads_spend||"0")))}` },
-                    { label: "Closing", val: parseInt(form.closing||"0") || 0 },
-                  ].map(({ label, val }) => (
-                    <div key={label}>
-                      <p className={`text-lg font-bold ${tx}`}>{val}</p>
-                      <p className={`text-[10px] ${mt}`}>{label}</p>
+                  {[["meta_ads_spend","Meta Ads"],["google_ads_spend","Google Ads"]].map(([k,l]) => (
+                    <div key={k}><label className={`block text-xs ${sub} mb-1.5`}>{l}</label>
+                      <div className="relative"><span className={`absolute left-3 top-1/2 -translate-y-1/2 text-xs ${sub}`}>Rp</span>
+                        <input type="number" value={(form as Record<string,unknown>)[k] as number} onChange={e => num(k, e.target.value)} className={`w-full border rounded-xl pl-8 pr-3 py-2.5 text-sm outline-none ${inp}`} />
+                      </div>
                     </div>
                   ))}
                 </div>
               </div>
-
-              <button type="submit" disabled={saving}
-                className="w-full mt-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl disabled:opacity-50 transition-colors">
-                {saving ? "Menyimpan..." : "Simpan Daily Report"}
+              <div><p className={`text-xs font-bold ${sub} mb-2 uppercase tracking-wider`}>👥 Total Leads Masuk</p>
+                <div className="grid grid-cols-2 gap-3">
+                  {[["meta_ads_leads","Meta Ads"],["google_ads_leads","Google Ads"]].map(([k,l]) => (
+                    <div key={k}><label className={`block text-xs ${sub} mb-1.5`}>{l}</label><input type="number" value={(form as Record<string,unknown>)[k] as number} onChange={e => num(k, e.target.value)} className={`w-full border rounded-xl px-3 py-2.5 text-sm outline-none ${inp}`} /></div>
+                  ))}
+                </div>
+              </div>
+              <div><p className={`text-xs font-bold ${sub} mb-2 uppercase tracking-wider`}>🔥 Kualitas Leads</p>
+                <div className="grid grid-cols-3 gap-3">
+                  {[["warms","Warms 🟡"],["hot_leads","Hot 🔥"],["closing","Closing ✅"]].map(([k,l]) => (
+                    <div key={k}><label className={`block text-xs ${sub} mb-1.5`}>{l}</label><input type="number" value={(form as Record<string,unknown>)[k] as number} onChange={e => num(k, e.target.value)} className={`w-full border rounded-xl-2.5 text-sm outline-none ${inp}`} /></div>
+                  ))}
+                </div>
+              </div>
+              <div><label className={`block text-xs font-semibold ${sub} mb-1.5 uppercase tracking-wider`}>Catatan / Kendala</label><textarea rows={2} value={form.notes} onChange={e => set("notes", e.target.value)} placeholder="Kendala atau insight hari ini..." className={`w-full border rounded-xl px-3 py-2.5 text-sm outline-none resize-none ${inp}`} /></div>
+              <div><label className={`block text-xs font-semibold ${sub} mb-1.5 uppercase tracking-wider`}>Rencana Besok</label><textarea rows={2} value={form.rencana_besok} onChange={e => set("rencana_besok", e.target.value)} placeholder="Rencana aktivitas besok..." className={`w-full border rounded-xl px-3 py-2.5 text-sm outline-none resize-none ${inp}`} /></div>
+              <button onClick={handleSubmit} disabled={saving} className="w-full py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-bold rounded-xl transition-all shadow-lg shadow-blue-500/20">
+                {saving ? "Menyimpan..." : "Simpan Laporan"}
               </button>
             </div>
-          </form>
-
-          {/* History */}
-          <div className="space-y-3">
-            <h2 className={`font-bold ${tx}`}>Riwayat Laporan</h2>
-            {loading && <p className={`text-sm ${mt}`}>Memuat...</p>}
-            {!loading && reports.length === 0 && (
-              <div className={`text-center py-12 ${mt}`}>
-                <TrendingUp size={36} className="mx-auto mb-3 opacity-20" />
-                <p className="text-sm font-medium">Belum ada laporan</p>
-              </div>
-            )}
-            {reports.map(r => <DesktopReportCard key={r.id} r={r} dark={dark} card={card} tx={tx} mt={mt} />)}
           </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function DesktopReportCard({ r, dark, card, tx, mt }: { r: DailyReport; dark: boolean; card: string; tx: string; mt: string }) {
-  const [open, setOpen] = useState(false);
-  const fmt = (n: number) => new Intl.NumberFormat("id-ID").format(n);
-  const fmtDate = (d: string) => new Date(d).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" });
-  return (
-    <div className={`${card} border rounded-2xl overflow-hidden`}>
-      <button onClick={() => setOpen(o => !o)} className="w-full p-4 text-left">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className={`font-bold text-sm ${tx}`}>Daily Report — {r.team}</p>
-            <p className={`text-xs ${mt} mt-0.5`}>{fmtDate(r.report_date)}</p>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="texright">
-              <p className="text-xs font-bold text-indigo-600">Rp {fmt(r.meta_ads_spend + r.google_ads_spend)}</p>
-              <p className={`text-[10px] ${mt}`}>{r.meta_ads_leads + r.google_ads_leads} leads</p>
-            </div>
-            <ChevronDown size={14} className={`${mt} transition-transform ${open ? "rotate-180" : ""}`} />
-          </div>
-        </div>
-      </button>
-      {open && (
-        <div className={`px-4 pb-4 border-t ${dark ? "border-[#1e2d4a]" : "border-slate-50"} space-y-3`}>
-          <div className="grid grid-cols-2 gap-3 mt-3">
-            <div className={`rounded-xl p-3 ${dark ? "bg-blue-900/20" : "bg-blue-50"}`}>
-              <p className={`text-[10px] ${dark?"text-blue-300":"text-blue-500"} mb-1`}>Meta Ads Spend</p>
-              <p className={`font-bold text-sm ${dark?"text-blue-200":"text-blue-700"}`}>Rp {fmt(r.meta_ads_spend)}</p>
-              <p className={`text-[10px] ${mt} mt-1`}>{r.meta_ads_leads} leads</p>
-            </div>
-            <div className={`rounded-xl p-3 ${dark ? "bg-green-900/20" : "bg-green-50"}`}>
-              <p className={`text-[10px] ${dark?"text-green-300":"text-green-500"} mb-1`}>Google Ads Spend</p>
-              <p className={`font-bold text-sm ${dark?"text-green-200":"text-green-700"}`}>Rp {fmt(r.google_ads_spend)}</p>
-              <p className={`text-[10px] ${mt} mt-1`}>{r.google_ads_leads} leads</p>
-            </div>
-          </div>
-          <div className="grid grid-cols-3 gap-2">
-            <div className={`rounded-xl p-2.5 text-center ${dark?"bg-orange-900/20":"bg-orange-50"}`}>
-              <p className={`text-[10px] ${dark?"text-orange-300":"text-orange-400"} mb-0.5`}>Warms</p>
-              <p className={`font-bold text-lg ${dark?"text-orange-200":"text-orange-600"}`}>{r.warms}</p>
-            </div>
-            <div className={`rounded-xl p-2.5 text-center ${dark?"bg-red-900/20":"bg-red-50"}`}>
-              <p className={`text-[10px] ${dark?"text-red-300":"text-red-400"} mb-0.5`}>Hot</p>
-              <p className={`font-bold text-lg ${dark?"text-red-200":"text-red-600"}`}>{r.hot_leads}</p>
-            </div>
-            <div className={`rounded-xl p-2.5 text-center ${dark?"bg-green-900/20":"bg-green-50"}`}>
-              <p className={`text-[10px] ${dark?"text-green-300":"text-green-400"} mb-0.5`}>Closing</p>
-              <p className={`font-bold text-lg ${dark?"text-green-200":"text-green-700"}`}>{r.closing}</p>
-            </div>
-          </div>
-          {r.notes && (
-            <div className={`rounded-xl p-3 ${dark?"bg-white/5":"bg-slate-50"}`}>
-              <p className={`text-[10px] font-bold ${mt} mb-1`}>CATATAN</p>
-              <p className={`text-xs ${tx}`}>{r.notes}</p>
-            </div>
-          )}
-          {r.rencana_besok && (
-            <div className={`rounded-xl p-3 ${dark?"bg-indigo-900/20":"bg-indigo-50"}`}>
-              <p className={`text-[10px] font-bold ${dark?"text-indigo-300":"text-indigo-600"} mb-1`}>RENCANA BESOK</p>
-              <p className={`text-xs ${tx}`}>{r.rencana_besok}</p>
-            </div>
-          )}
         </div>
       )}
     </div>
